@@ -228,14 +228,10 @@ Proof.
   iCombine "Hj Hown" as "Hghost_ref".
   (* Had to do this twice to get a ghost_part_ref? I can't find the way to flip *)
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hghost_ref") as "Hghost_ref".
-  iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ ((λ n0 : nat, Some (gmap_lookup n0 {[j := fill K e']}),
-                 to_heap gmap_empty)) (to_tpool (<[ j := fill K e' ]> tp), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
+  iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ (({[j := Some (fill K e')]}),
+                 to_heap gmap_empty) (to_tpool (<[ j := fill K e' ]> tp), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
   {
-    intros frame [Htp Hheap].
-    simpl in *.
-    split.
-    admit.
-    admit.
+    (* TODO *)
   }
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hghost_ref]") as "[Hj Hown]".
   iExists sh.
