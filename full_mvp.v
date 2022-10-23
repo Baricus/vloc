@@ -34,8 +34,8 @@ Section refinement.
 Context `{gName : own.gname, nspace : namespace}.
 
 (*define shorthand *)
-Definition ival := ectxi_language.val heap_ectxi_lang.
-Definition iexp := ectxi_language.expr heap_ectxi_lang.
+Definition ival := heap_lang.val.
+Definition iexp := heap_lang.expr.
 
 (*map => gmap*)
 Definition tpool_ghost := (gmap_ghost (K:=nat) (A:= (@G (exclusive_PCM iexp)))).
@@ -148,8 +148,20 @@ Lemma tpool_lookup_Some tp j e : to_tpool tp !! j = Some (Some e) → tp !! j = 
 Proof. rewrite tpool_lookup fmap_Some. naive_solver. Qed.
 Hint Resolve tpool_lookup_Some : core.
 
-Lemma to_tpool_insert tp j e :
-  j < length tp →
+(*#[export] Instance insert_test : Insert nat iexp (list iexp).*)
+(*Proof.*)
+  (*unfold Insert.*)
+  (*auto.*)
+(*Qed.*)
+(*#[export] Instance insert_test' : Insert nat (option iexp) (@G tpool_ghost).*)
+(*Proof.*)
+  (*unfold Insert; auto.*)
+(*Qed.*)
+
+(* Borrowed from spec_ra *)
+Compute @G tpool_ghost.
+Lemma to_tpool_insert tp (j:nat) (e:iexp) :
+  (j < length tp)%nat →
   to_tpool (<[j:=e]> tp) = <[j:=Some e]> (to_tpool tp).
 Proof.
   intros. apply: map_eq=> i. destruct (decide (i = j)) as [->|].
@@ -157,14 +169,14 @@ Proof.
   - rewrite tpool_lookup lookup_insert_ne // list_lookup_insert_ne //.
     by rewrite tpool_lookup.
 Qed.
-Lemma to_tpool_insert' tp j e :
+Lemma to_tpool_insert' tp (j:nat) (e:iexp) :
   is_Some (to_tpool tp !! j) →
-  to_tpool (<[j:=e]> tp) = <[j:=Excl e]> (to_tpool tp).
+  to_tpool (<[j:=e]> tp) = <[j:=Some e]> (to_tpool tp).
 Proof.
   rewrite tpool_lookup fmap_is_Some lookup_lt_is_Some. apply to_tpool_insert.
 Qed.
 Lemma to_tpool_snoc tp e :
-  to_tpool (tp ++ [e]) = <[length tp:=Excl e]>(to_tpool tp).
+  to_tpool (tp ++ [e]) = <[length tp:=Some e]>(to_tpool tp).
 Proof.
   intros. apply: map_eq=> i.
   destruct (lt_eq_lt_dec i (length tp)) as [[?| ->]|?].
