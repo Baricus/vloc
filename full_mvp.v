@@ -38,14 +38,16 @@ Definition ival := ectxi_language.val heap_ectxi_lang.
 Definition iexp := ectxi_language.expr heap_ectxi_lang.
 
 (*map => gmap*)
-Definition tpool_ghost := (@map_PCM nat (exclusive_PCM iexp)).
-(*NOTE: had to add an option to the ival to match the heap type. Should that be baked in elsewhere? *)
-Definition heap_ghost := (@map_PCM (loc) (@pos_PCM (discrete_PCM (option ival)))).
+Definition tpool_ghost := (gmap_ghost (K:=nat) (A:= (@G (exclusive_PCM iexp)))).
+(*This feels weird; why does gmap_ghost take a Type?  I hope this works *)
+Definition heap_ghost := (gmap_ghost (K:=loc) (A:=(@G (@pos_PCM (discrete_PCM (option ival)))))). (*(@pos_PCM (discrete_PCM (option ival)))).*)
+Compute @G heap_ghost. (*it has the right type at least*)
 Definition spec_ghost := prod_PCM tpool_ghost heap_ghost.
 
 (*The reference has no share, so we can't combine it*)
 Definition InvGhost (map : @G spec_ghost) := @ghost_reference spec_ghost map gName.
 Definition UsrGhost (map : @G spec_ghost) := EX s, (@ghost_part spec_ghost s map gName).
+
 
 (*Couldn't use the nice things :( *)
 (*Fixpoint map_seq_int {t} (n : nat) (exps : list t) := *)
@@ -63,18 +65,19 @@ Definition UsrGhost (map : @G spec_ghost) := EX s, (@ghost_part spec_ghost s map
   (*end.*)
 
 (*convert list of expressions to thread pool*)
+Compute @G tpool_ghost.
 Definition to_tpool (exps : list iexp) : @G tpool_ghost
-  := λ n, Some (gmap_lookup n (map_seq 0 exps)).
+  := Some <$> (map_seq 0 exps).
 
  (*this is horrible and a case for using gmaps directly *)
-Compute (@G tpool_ghost).
-Definition tpool_update (gtp : @G tpool_ghost) (j : nat) (e : iexp) : @G tpool_ghost
-  := λ n, (if n =? j then Some (Some e) else gtp n).
+(*Compute (@G tpool_ghost).*)
+(*Definition tpool_update (gtp : @G tpool_ghost) (j : nat) (e : iexp) : @G tpool_ghost*)
+  (*:= λ n, (if n =? j then Some (Some e) else gtp n).*)
 
 (*Converts a standard heap-lang heap to a form we can store it in VST*)
 (*Largely a function of keys to values*)
-Definition to_heap (heap : gmap loc (option ival)) : (loc -> option (option (Share.t * option ival))) :=
-  (flip gmap_lookup) ((λ v, (Some (fullshare, v))) <$> heap).
+Definition to_heap (heap : gmap loc (option ival)) : @G heap_ghost :=
+  fmap (λ v, (Some (fullshare, v))) heap.
 
 Definition spec_inv (c : cfg (heap_lang)) : mpred := 
     EX exp_list : list iexp, EX σ,
@@ -88,7 +91,7 @@ Definition spec_ctx : mpred :=
 
 (*Define our own singleton map and turn it to a VST map for the non-invariant side *)
 Definition tpool_mapsto (j : nat) (e : iexp) := 
-  UsrGhost ((λ n, Some (gmap_lookup n ({[j := e]}))), to_heap gmap_empty).
+  UsrGhost ({[j := Some e]}, to_heap gmap_empty).
 Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
 
 (*ref id maps references *)
@@ -134,17 +137,43 @@ Proof.
   cancel.
 Qed.
 
-Lemma to_tpool_insert tp (j:nat) e :
-    forall n, 
-    j < length tp →
-    (to_tpool (<[j:=e]> tp) n) = (tpool_update (to_tpool tp) j e) n.
-  Proof.
-    intros. 
-    rewrite /tpool_update.
-    rewrite /to_tpool.
-    destruct (eq_dec n j); subst; simpl.
-    - rewrite Z.eqb_refl.
-Admitted.
+  
+Lemma tpool_lookup tp j : to_tpool tp !! j = Some <$> tp !! j.
+Proof.
+  unfold to_tpool. rewrite lookup_fmap.
+  by rewrite lookup_map_seq_0.
+Qed.
+
+Lemma tpool_lookup_Some tp j e : to_tpool tp !! j = Some (Some e) → tp !! j = Some e.
+Proof. rewrite tpool_lookup fmap_Some. naive_solver. Qed.
+Hint Resolve tpool_lookup_Some : core.
+
+Lemma to_tpool_insert tp j e :
+  j < length tp →
+  to_tpool (<[j:=e]> tp) = <[j:=Some e]> (to_tpool tp).
+Proof.
+  intros. apply: map_eq=> i. destruct (decide (i = j)) as [->|].
+  - by rewrite tpool_lookup lookup_insert list_lookup_insert.
+  - rewrite tpool_lookup lookup_insert_ne // list_lookup_insert_ne //.
+    by rewrite tpool_lookup.
+Qed.
+Lemma to_tpool_insert' tp j e :
+  is_Some (to_tpool tp !! j) →
+  to_tpool (<[j:=e]> tp) = <[j:=Excl e]> (to_tpool tp).
+Proof.
+  rewrite tpool_lookup fmap_is_Some lookup_lt_is_Some. apply to_tpool_insert.
+Qed.
+Lemma to_tpool_snoc tp e :
+  to_tpool (tp ++ [e]) = <[length tp:=Excl e]>(to_tpool tp).
+Proof.
+  intros. apply: map_eq=> i.
+  destruct (lt_eq_lt_dec i (length tp)) as [[?| ->]|?].
+  - rewrite lookup_insert_ne; last lia. by rewrite !tpool_lookup lookup_app_l.
+  - by rewrite lookup_insert tpool_lookup lookup_app_r // Nat.sub_diag.
+  - rewrite lookup_insert_ne; last lia.
+    rewrite !tpool_lookup ?lookup_ge_None_2 ?app_length //=;
+       change (ofe_car exprO) with expr; lia.
+Qed.
 
 (* Going to try to define the refines pure right *)
 (* "stolen" from theories/logic/spec_rules.v *)
