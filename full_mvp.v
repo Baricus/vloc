@@ -226,12 +226,29 @@ Proof.
   iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as "%Hghost_join".
   (* Turns out we need the ghost_part_ref for the easy update *)
   iCombine "Hj Hown" as "Hghost_ref".
-  (* Had to do this twice to get a ghost_part_ref? I can't find the way to flip *)
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hghost_ref") as "Hghost_ref".
   iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ (({[j := Some (fill K e')]}),
                  to_heap gmap_empty) (to_tpool (<[ j := fill K e' ]> tp), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
   {
-    (* TODO *)
+    if_tac in Hghost_join.
+    - intros Gtype Hjoin.
+      split.
+      + admit.  (*TODO*)
+      + intros Oldg.
+        inversion Oldg.
+        rewrite to_tpool_insert'; [| rewrite <- H2; rewrite lookup_singleton; auto ].
+        rewrite <- H2.
+        rewrite insert_singleton.
+        reflexivity.
+    - intros Gtype Hjoin.
+      split.
+      + admit. (*TODO*)
+      + intros Oldg.
+        inversion Oldg.
+        rewrite to_tpool_insert'; [| rewrite <- H2; rewrite lookup_singleton; auto ].
+        rewrite <- H2.
+        rewrite insert_singleton.
+        reflexivity.
   }
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hghost_ref]") as "[Hj Hown]".
   iExists sh.
@@ -249,14 +266,15 @@ Proof.
     apply rtc_nsteps_1 in Hrtc; destruct Hrtc as [m Hrtc].
     specialize (Hex HP). apply (rtc_nsteps_2 (m + n)).
     eapply nsteps_trans; eauto.
-    assert ((to_tpool tp)  j = Some (Some (fill K e))) as Htpj.
+    assert ((to_tpool tp) !!  j = Some (Some (fill K e))) as Htpj.
     {
         if_tac in Hghost_join.
         - inversion Hghost_join.
           fold (lookup (M:=gmap _ _) j {[j := fill K e]}).
           admit.
           (*rewrite (lookup_singleton (M := gmap _)).*)
-        - admit.
+        - destruct Hghost_join as [full_state Hghost_join].
+          admit.
 
     }
     clear Hghost_join.
