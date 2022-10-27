@@ -97,7 +97,7 @@ Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
 (*ref id maps references *)
 Record ref_id : Set := RefId { tp_id : nat;  tp_ctx : list ectx_item }.
 
-Definition refines_right (r : ref_id) (e : iexp) : mpred := 
+Definition refines_right (r : ref_id) (e : iexp) := 
   (spec_ctx * (tp_id r) |=> (fill (tp_ctx r) e))%logic.
 
 Definition refines f2 A : funspec :=
@@ -206,6 +206,7 @@ Lemma step_insert_no_fork K tp j e σ κ e' σ' :
   erased_step (tp, σ) (<[j:=fill K e']> tp, σ').
 Proof. rewrite -(right_id_L [] (++) (<[_:=_]>_)). by apply step_insert. Qed.
 
+(*#[export] Instance gmap_alg : Perm_alg (gmap nat (option iexp)).*)
 
 Lemma step_pure E j K e e' (P : Prop) n :
   P →
@@ -230,25 +231,21 @@ Proof.
   iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ (({[j := Some (fill K e')]}),
                  to_heap gmap_empty) (to_tpool (<[ j := fill K e' ]> tp), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
   {
-    if_tac in Hghost_join.
-    - intros Gtype Hjoin.
-      split.
-      + admit.  (*TODO*)
-      + intros Oldg.
-        inversion Oldg.
-        rewrite to_tpool_insert'; [| rewrite <- H2; rewrite lookup_singleton; auto ].
-        rewrite <- H2.
-        rewrite insert_singleton.
-        reflexivity.
-    - intros Gtype Hjoin.
-      split.
-      + admit. (*TODO*)
-      + intros Oldg.
-        inversion Oldg.
-        rewrite to_tpool_insert'; [| rewrite <- H2; rewrite lookup_singleton; auto ].
-        rewrite <- H2.
-        rewrite insert_singleton.
-        reflexivity.
+    intros Gframe Hjoin.
+    split.
+    - hnf.
+      destruct Hjoin as [Htp Hheap].
+      split; simpl in *.
+      * 
+        (*apply join_eq in Htp.*)
+        admit.
+      * auto.
+    - intros Oldg.
+      inversion Oldg.
+      rewrite to_tpool_insert'; [| rewrite <- H1; rewrite lookup_singleton; auto ].
+      rewrite <- H1.
+      rewrite insert_singleton.
+      reflexivity.
   }
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hghost_ref]") as "[Hj Hown]".
   iExists sh.
@@ -261,55 +258,47 @@ Proof.
   iFrame. 
   (*rewrite to_tpool_insert'; last eauto. NOTE: NEED THIS! *)
   iSplit; auto.
+  iPureIntro.
+  apply rtc_nsteps_1 in Hrtc; destruct Hrtc as [m Hrtc].
+  specialize (Hex HP). apply (rtc_nsteps_2 (m + n)).
+  eapply nsteps_trans; eauto.
+  assert ((to_tpool tp) !!  j = Some (Some (fill K e))) as Htpj.
   {
-    iPureIntro.
-    apply rtc_nsteps_1 in Hrtc; destruct Hrtc as [m Hrtc].
-    specialize (Hex HP). apply (rtc_nsteps_2 (m + n)).
-    eapply nsteps_trans; eauto.
-    assert ((to_tpool tp) !!  j = Some (Some (fill K e))) as Htpj.
-    {
-        if_tac in Hghost_join.
-        - inversion Hghost_join.
-          fold (lookup (M:=gmap _ _) j {[j := fill K e]}).
-          admit.
-          (*rewrite (lookup_singleton (M := gmap _)).*)
-        - destruct Hghost_join as [full_state Hghost_join].
-          admit.
-
-    }
-    clear Hghost_join.
-    revert e e' Htpj Hex.
-    induction n => e e' Htpj Hex.
-    - inversion Hex; subst.
-      rewrite list_insert_id; eauto. econstructor.
-      unfold to_tpool in Htpj.
-      assert ((λ n : nat, Some (gmap_lookup n {[j := fill K e']})) j = Some (Some (fill K e'))).
-      { 
+    (*TODO: get rid of if_tac*)
+      if_tac in Hghost_join.
+      - inversion Hghost_join.
+        fold (lookup (M:=gmap _ _) j {[j := fill K e]}).
+        rewrite lookup_singleton.
+        reflexivity.
+      - destruct Hghost_join as [full_state Hghost_join].
+        inversion Hghost_join as [Htp Hheap]; simpl in *.
+        (*Need to show that the join requires (to_tpool tp) to map j to Some (fill K e) *)
         admit.
-      }
-      (*rewrite lookup_map_seq_0 in Htpj.*)
-      admit.
-    - apply nsteps_inv_r in Hex.
-      destruct Hex as [z [Hex1 Hex2]].
-      specialize (IHn _ _ Htpj Hex1).
-      eapply nsteps_r; eauto.
-      replace (<[j:=fill K e']> tp) with
-        (<[j:=fill K e']> (<[j:=fill K z]> tp)); last first.
-        { clear. revert tp; induction j; intros tp.
-          - destruct tp; trivial.
-    - destruct tp; simpl; auto. by rewrite IHj. }
+
+  }
+  clear Hghost_join.
+  revert e e' Htpj Hex.
+  induction n => e e' Htpj Hex.
+  - inversion Hex; subst.
+    rewrite list_insert_id; eauto. econstructor.
+  - apply nsteps_inv_r in Hex.
+    destruct Hex as [z [Hex1 Hex2]].
+    specialize (IHn _ _ Htpj Hex1).
+    eapply nsteps_r; eauto.
+    replace (<[j:=fill K e']> tp) with
+          (<[j:=fill K e']> (<[j:=fill K z]> tp)); last first.
+      { clear. revert tp; induction j; intros tp.
+        - destruct tp; trivial.
+        - destruct tp; simpl; auto. by rewrite IHj. }
       destruct Hex2 as [Hexs Hexd].
       specialize (Hexs σ). destruct Hexs as [e'' [σ' [efs Hexs]]].
       specialize (Hexd σ [] e'' σ' efs Hexs); destruct Hexd as [? [? [? ?]]];
-      subst.
+        subst.
       inversion Hexs; simpl in *; subst.
       rewrite -!fill_app.
       eapply step_insert_no_fork; eauto.
-      { apply list_lookup_insert. unfold to_tpool in Htpj. apply lookup_lt_is_Some; eauto.  admit. }
-  }
+      { apply list_lookup_insert. apply lookup_lt_is_Some; eauto. }
 Admitted.
-
-
 
 (* Taken from theories/logic/proofmode/spec_tactics!!! *)
 (** Tactics for updating the specification program. *)
@@ -381,7 +370,7 @@ Lemma tac_tp_pure e K' e1 k e2 Δ1 E1 i1 e' ϕ ψ Q n :
   e = fill K' e1 →
   PureExec ϕ n e1 e2 →
   (∀ P, ElimModal ψ false false (|={E1}=> P) P Q Q) →
-  (*nclose specN ⊆ E1 →*)
+  nclose nspace ⊆ E1 →
   envs_lookup i1 Δ1 = Some (false, @refines_right gName nspace k e)%I →
   ψ →
   ϕ →
@@ -393,30 +382,78 @@ Lemma tac_tp_pure e K' e1 k e2 Δ1 E1 i1 e' ϕ ψ Q n :
   end →
   envs_entails Δ1 Q.
 Proof.
-Admitted.
-  (*rewrite envs_entails_unseal. *)
-  (*intros -> Hpure ?? Hψ Hϕ -> ?.*)
-  (*destruct (envs_simple_replace _ _ _ _) as [Δ2|] eqn:HΔ2; try done.*)
-  (*rewrite (envs_simple_replace_sound Δ1 Δ2 i1) //; simpl.*)
-  (*rewrite right_id.*)
-  (*rewrite /refines_right.*)
-  (*rewrite -!fill_app.*)
-  (*rewrite step_pure //.*)
-  (*rewrite -[Q]elim_modal // /=.*)
-  (*apply bi.sep_mono_r.*)
-  (*apply bi.wand_intro_l.*)
-  (*by rewrite bi.wand_elim_r.*)
-(*Qed.*)
+  rewrite envs_entails_unseal. 
+  intros -> Hpure ??? Hψ Hϕ -> ?.
+  destruct (envs_simple_replace _ _ _ _) as [Δ2|] eqn:HΔ2; try done.
+  rewrite (envs_simple_replace_sound Δ1 Δ2 i1) //; simpl.
+  rewrite right_id.
+  rewrite /refines_right.
+  rewrite -!fill_app.
+  rewrite step_pure //.
+  rewrite -[Q]elim_modal // /=.
+  apply bi.sep_mono_r.
+  apply bi.wand_intro_l.
+  by rewrite bi.wand_elim_r.
+Qed.
 
 
+Tactic Notation "tp_pure" constr(j) open_constr(ef) :=
+  iStartProof;
+  lazymatch goal with
+  | |- context[environments.Esnoc _ ?H (refines_right j (ectx_language.fill ?K' ?e))] =>
+    reshape_expr e ltac:(fun K e' =>
+      unify e' ef;
+      eapply (tac_tp_pure (ectx_language.fill K' e) (K++K') e' j);
+      [by rewrite ?fill_app | iSolveTC | ..])
+  | |- context[environments.Esnoc _ ?H (refines_right j ?e)] =>
+    reshape_expr e ltac:(fun K e' =>
+      unify e' ef;
+      eapply (tac_tp_pure e K e' j);
+      [by rewrite ?fill_app | iSolveTC | ..])
+  end;
+  [iSolveTC || fail "tp_pure: cannot eliminate modality in the goal"
+  |solve_ndisj || fail "tp_pure: cannot prove 'nclose specN ⊆ ?'"
+  (* |iAssumptionCore || fail "tp_pure: cannot find spec_ctx" (* spec_ctx *) *)
+  |iAssumptionCore || fail "tp_pure: cannot find the RHS" (* TODO fix error message *)
+  |try (exact I || reflexivity) (* ψ *)
+  |try (exact I || reflexivity) (* ϕ *)
+  |simpl; reflexivity ||  fail "tp_pure: this should not happen" (* e' = ectx_language.fill K' e2 *)
+  |pm_reduce (* new goal *)].
 
-Lemma refines_right_pure_r e e' Φ K' n:
+Tactic Notation "tp_pures" constr (j) := repeat (tp_pure j _).
+Tactic Notation "tp_rec" constr(j) :=
+  let H := fresh in
+  assert (H := AsRecV_recv);
+  tp_pure j (App _ _);
+  clear H.
+Tactic Notation "tp_seq" constr(j) := tp_rec j.
+Tactic Notation "tp_let" constr(j) := tp_rec j.
+Tactic Notation "tp_lam" constr(j) := tp_rec j.
+Tactic Notation "tp_fst" constr(j) := tp_pure j (Fst (PairV _ _)).
+Tactic Notation "tp_snd" constr(j) := tp_pure j (Snd (PairV _ _)).
+Tactic Notation "tp_proj" constr(j) := tp_pure j (_ (PairV _ _)).
+Tactic Notation "tp_case_inl" constr(j) := tp_pure j (Case (InjLV _) _ _).
+Tactic Notation "tp_case_inr" constr(j) := tp_pure j (Case (InjRV _) _ _).
+Tactic Notation "tp_case" constr(j) := tp_pure j (Case _ _ _).
+Tactic Notation "tp_binop" constr(j) := tp_pure j (BinOp _ _ _).
+Tactic Notation "tp_op" constr(j) := tp_binop j.
+Tactic Notation "tp_if_true" constr(j) := tp_pure j (If (LitV (LitBool true)) _ _).
+Tactic Notation "tp_if_false" constr(j) := tp_pure j (If (LitV (LitBool false)) _ _).
+Tactic Notation "tp_if" constr(j) := tp_pure j (If _ _ _).
+Tactic Notation "tp_pair" constr(j) := tp_pure j (Pair _ _).
+Tactic Notation "tp_closure" constr(j) := tp_pure j (Rec _ _ _).
+
+
+Lemma refines_right_pure_r e e' Φ j K' n:
   PureExec Φ n e e' ->  Φ ->
-  (∀ j1, @refines_right gName nspace j1 (ectx_language.fill K' e')) |-- (∀ j2, @refines_right gName nspace j2 (fill K' e) ).
+  (@refines_right gName nspace j (ectx_language.fill K' e')) |-- (@refines_right gName nspace j (ectx_language.fill K' e) ).
 Proof.
   intros.
-  iIntros "h" (j2).
-  tp_pure j2.
+  iIntros "H".
+
+
+
+
 
 
 Definition ret_one_plus : iexp := BinOp PlusOp (Val (LitV (heap_lang.LitInt 1%Z))) (Val (LitV (heap_lang.LitInt 0%Z))).
