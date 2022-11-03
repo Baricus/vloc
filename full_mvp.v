@@ -1,29 +1,38 @@
-From VST.veric Require Import rmaps compcert_rmaps.
-Require Import iris.bi.lib.atomic.
-Require Import VST.veric.bi.
 Require Import iris.program_logic.language.
 Require Import iris.program_logic.ectxi_language.
-Require Import VST.floyd.library.
-Require Import VST.zlist.sublist.
-Require Import Program.Equality.
-From iris.algebra Require Import excl gmap.
-(*Require Import iris.base_logic.lib.invariants.*)
-Require Import VST.concurrency.invariants.
-Require Import VST.concurrency.fupd.
 
+Require Import iris.bi.lib.atomic.
 From iris.heap_lang Require Export lang derived_laws metatheory.
 From iris.heap_lang Require Import proofmode.
 Require Import stdpp.list.
 
+From VST.veric Require Import rmaps compcert_rmaps.
+
+Require Import VST.veric.bi.
+
+Require Import VST.floyd.library.
+Require Import VST.zlist.sublist.
+Require Import Program.Equality.
+From iris.algebra Require Import excl gmap.
 Require Import VST.floyd.proofauto.
+Require Import VST.concurrency.invariants.
 (*Separate import needed!*)
 Require Import VST.concurrency.ghosts.
+Require Import VST.concurrency.ghostsI.
+Require Import VST.concurrency.fupd.
 
 Require Import VST.floyd.library.
 
+(* Taken from theories/logic/proofmode/spec_tactics!!! *)
+(** Tactics for updating the specification program. *)
+From iris.proofmode Require Import
+     coq_tactics ltac_tactics
+     sel_patterns environments
+     reduction.
+
 (*Not needed currently *)
 Require Import Top.mvp.
-Require Import VST.concurrency.ghostsI.
+
 
 Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs.  mk_varspecs prog. Defined.
@@ -38,9 +47,9 @@ Definition ival := heap_lang.val.
 Definition iexp := heap_lang.expr.
 
 (*map => gmap*)
-Definition tpool_ghost := (gmap_ghost (K:=nat) (A:= (@G (exclusive_PCM iexp)))).
+Definition tpool_ghost := (gmap_ghost (K:=nat) (A:=(exclusive_PCM iexp))).
 (*This feels weird; why does gmap_ghost take a Type?  I hope this works *)
-Definition heap_ghost := (gmap_ghost (K:=loc) (A:=(@G (@pos_PCM (discrete_PCM (option ival)))))). (*(@pos_PCM (discrete_PCM (option ival)))).*)
+Definition heap_ghost := (gmap_ghost (K:=loc) (A:=(@pos_PCM (discrete_PCM (option ival))))). (*(@pos_PCM (discrete_PCM (option ival)))).*)
 Compute @G heap_ghost. (*it has the right type at least*)
 Definition spec_ghost := prod_PCM tpool_ghost heap_ghost.
 
@@ -101,17 +110,17 @@ Definition refines_right (r : ref_id) (e : iexp) :=
   (spec_ctx * (tp_id r) |=> (fill (tp_ctx r) e))%logic.
 
 Definition refines f2 A : funspec :=
-  WITH gv: globals, context: ref_id
+  WITH gv: globals, ctx: ref_id
   PRE [ (* types of function parameters *) ]
     PROP()
     PARAMS((* NOTE: how to handle parameters *))
     GLOBALS((* do we need anything to correlate globals and Context? Hopefully not *))
-    SEP(refines_right context f2)
+    SEP(refines_right ctx f2)
   POST [ tint ] (* NOTE: type!!! A map of iris types to vst types? *)
     EX v' : ival, EX v : val,
     PROP()
     RETURN(v)
-    SEP(refines_right context (ectxi_language.of_val v') * A v v').
+    SEP(refines_right ctx (ectxi_language.of_val v') * A v v').
 
 End refinement.
 
@@ -121,7 +130,7 @@ Definition refines_heap_lang e A : funspec := refines  (gName := gName) (nspace:
 Definition ret_one : iexp := Val (LitV (heap_lang.LitInt 1%Z)).
 (*NOTE: diff between ectxi language and ectx language?*)
 Definition fspec := DECLARE _returns_one refines_heap_lang ret_one 
-  (fun vVST vHL => !! (exists n : Z, vVST = Vint (Int.repr n) /\ vHL = LitV (heap_lang.LitInt n%Z))&&emp).
+  (fun vVST vHL => !! (exists n : Z, vVST = Vint (Int.repr n) /\ vHL = LitV (heap_lang.LitInt n%Z))&&emp)%logic.
 Definition Gprog : funspecs := [fspec].
 
 Lemma one: semax_body Vprog Gprog f_returns_one fspec.
@@ -213,7 +222,7 @@ Lemma step_pure E j K e e' (P : Prop) n :
   PureExec P n e e' →
   (*NOTE: I don't know if this is how you use a vst namespace in Iris logic *)
   nclose nspace ⊆ E →
-  @spec_ctx gName nspace ∗ @tpool_mapsto gName j (fill K e) ={E}=∗ @spec_ctx gName nspace ∗ @tpool_mapsto gName j (fill K e').
+  @spec_ctx gName nspace * @tpool_mapsto gName j (fill K e) |-- |={E}=> @spec_ctx gName nspace ∗ @tpool_mapsto gName j (fill K e').
 Proof.
   iIntros (HP Hex ?) "[#Hspec Hj]". iFrame "Hspec".
   iDestruct "Hspec" as (ρ) "Hspec".
@@ -229,21 +238,31 @@ Proof.
   iCombine "Hj Hown" as "Hghost_ref".
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hghost_ref") as "Hghost_ref".
   iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ (({[j := Some (fill K e')]}),
-                 to_heap gmap_empty) (to_tpool (<[ j := fill K e' ]> tp), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
+                 to_heap gmap_empty) ((<[ j := Some (fill K e') ]> (to_tpool tp)), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
   {
     intros Gframe Hjoin.
     split.
     - hnf.
       destruct Hjoin as [Htp Hheap].
       split; simpl in *.
-      * 
-        (*apply join_eq in Htp.*)
-        admit.
+      * iIntros (k).
+        destruct (eq_dec k j).
+        + subst.
+          rewrite lookup_singleton.
+          specialize (Htp j).
+          rewrite lookup_singleton in Htp.
+          rewrite lookup_insert.
+          inv Htp; constructor.
+          inv H3; constructor.
+          inv H4.
+        + 
+          rewrite ! lookup_insert_ne; auto.
+          rewrite lookup_empty.
+          pose proof Htp k as Htpk.
+          rewrite lookup_singleton_ne in Htpk; auto.
       * auto.
     - intros Oldg.
       inversion Oldg.
-      rewrite to_tpool_insert'; [| rewrite <- H1; rewrite lookup_singleton; auto ].
-      rewrite <- H1.
       rewrite insert_singleton.
       reflexivity.
   }
@@ -252,16 +271,8 @@ Proof.
   iFrame "Hj". 
   iApply "Hclose".
   iNext.
-  (*repeat rewrite Hheap_sub. [> Why do I need to do this? <]*)
-  (*clear Hheap_sub.*)
   iExists (<[j:=fill K e']> tp), σ.
   iFrame. 
-  (*rewrite to_tpool_insert'; last eauto. NOTE: NEED THIS! *)
-  iSplit; auto.
-  iPureIntro.
-  apply rtc_nsteps_1 in Hrtc; destruct Hrtc as [m Hrtc].
-  specialize (Hex HP). apply (rtc_nsteps_2 (m + n)).
-  eapply nsteps_trans; eauto.
   assert ((to_tpool tp) !!  j = Some (Some (fill K e))) as Htpj.
   {
     (*TODO: get rid of if_tac*)
@@ -272,10 +283,18 @@ Proof.
         reflexivity.
       - destruct Hghost_join as [full_state Hghost_join].
         inversion Hghost_join as [Htp Hheap]; simpl in *.
-        (*Need to show that the join requires (to_tpool tp) to map j to Some (fill K e) *)
-        admit.
-
+        specialize (Htp j).
+        rewrite lookup_singleton in Htp.
+        inv Htp; auto.
+        inv H4; auto.
+        inv H5.
   }
+  rewrite to_tpool_insert'; last eauto. 
+  iSplit; auto.
+  iPureIntro.
+  apply rtc_nsteps_1 in Hrtc; destruct Hrtc as [m Hrtc].
+  specialize (Hex HP). apply (rtc_nsteps_2 (m + n)).
+  eapply nsteps_trans; eauto.
   clear Hghost_join.
   revert e e' Htpj Hex.
   induction n => e e' Htpj Hex.
@@ -298,14 +317,10 @@ Proof.
       rewrite -!fill_app.
       eapply step_insert_no_fork; eauto.
       { apply list_lookup_insert. apply lookup_lt_is_Some; eauto. }
-Admitted.
+Qed.
+
 
 (* Taken from theories/logic/proofmode/spec_tactics!!! *)
-(** Tactics for updating the specification program. *)
-From iris.proofmode Require Import
-     coq_tactics ltac_tactics
-     sel_patterns environments
-     reduction.
 
 (** ** bind *)
 Lemma tac_tp_bind_gen k Δ Δ' i p e e' Q :
@@ -396,79 +411,49 @@ Proof.
   by rewrite bi.wand_elim_r.
 Qed.
 
-
-Tactic Notation "tp_pure" constr(j) open_constr(ef) :=
-  iStartProof;
-  lazymatch goal with
-  | |- context[environments.Esnoc _ ?H (refines_right j (ectx_language.fill ?K' ?e))] =>
-    reshape_expr e ltac:(fun K e' =>
-      unify e' ef;
-      eapply (tac_tp_pure (ectx_language.fill K' e) (K++K') e' j);
-      [by rewrite ?fill_app | iSolveTC | ..])
-  | |- context[environments.Esnoc _ ?H (refines_right j ?e)] =>
-    reshape_expr e ltac:(fun K e' =>
-      unify e' ef;
-      eapply (tac_tp_pure e K e' j);
-      [by rewrite ?fill_app | iSolveTC | ..])
-  end;
-  [iSolveTC || fail "tp_pure: cannot eliminate modality in the goal"
-  |solve_ndisj || fail "tp_pure: cannot prove 'nclose specN ⊆ ?'"
-  (* |iAssumptionCore || fail "tp_pure: cannot find spec_ctx" (* spec_ctx *) *)
-  |iAssumptionCore || fail "tp_pure: cannot find the RHS" (* TODO fix error message *)
-  |try (exact I || reflexivity) (* ψ *)
-  |try (exact I || reflexivity) (* ϕ *)
-  |simpl; reflexivity ||  fail "tp_pure: this should not happen" (* e' = ectx_language.fill K' e2 *)
-  |pm_reduce (* new goal *)].
-
-Tactic Notation "tp_pures" constr (j) := repeat (tp_pure j _).
-Tactic Notation "tp_rec" constr(j) :=
-  let H := fresh in
-  assert (H := AsRecV_recv);
-  tp_pure j (App _ _);
-  clear H.
-Tactic Notation "tp_seq" constr(j) := tp_rec j.
-Tactic Notation "tp_let" constr(j) := tp_rec j.
-Tactic Notation "tp_lam" constr(j) := tp_rec j.
-Tactic Notation "tp_fst" constr(j) := tp_pure j (Fst (PairV _ _)).
-Tactic Notation "tp_snd" constr(j) := tp_pure j (Snd (PairV _ _)).
-Tactic Notation "tp_proj" constr(j) := tp_pure j (_ (PairV _ _)).
-Tactic Notation "tp_case_inl" constr(j) := tp_pure j (Case (InjLV _) _ _).
-Tactic Notation "tp_case_inr" constr(j) := tp_pure j (Case (InjRV _) _ _).
-Tactic Notation "tp_case" constr(j) := tp_pure j (Case _ _ _).
-Tactic Notation "tp_binop" constr(j) := tp_pure j (BinOp _ _ _).
-Tactic Notation "tp_op" constr(j) := tp_binop j.
-Tactic Notation "tp_if_true" constr(j) := tp_pure j (If (LitV (LitBool true)) _ _).
-Tactic Notation "tp_if_false" constr(j) := tp_pure j (If (LitV (LitBool false)) _ _).
-Tactic Notation "tp_if" constr(j) := tp_pure j (If _ _ _).
-Tactic Notation "tp_pair" constr(j) := tp_pure j (Pair _ _).
-Tactic Notation "tp_closure" constr(j) := tp_pure j (Rec _ _ _).
-
-
-Lemma refines_right_pure_r e e' Φ j K' n:
+Lemma refines_right_pure_r e e' Φ E j K' n:
   PureExec Φ n e e' ->  Φ ->
-  (@refines_right gName nspace j (ectx_language.fill K' e')) |-- (@refines_right gName nspace j (ectx_language.fill K' e) ).
+  nclose nspace ⊆ E ->
+  (@refines_right gName nspace j (ectxi_language.fill K' e)) |-- 
+    |={E}=> (@refines_right gName nspace j (ectxi_language.fill K' e') ).
 Proof.
   intros.
-  iIntros "H".
-
-
-
-
-
+  iIntros "Rprev".
+  iPoseProof ((step_pure _ _ _ _ _ _ _ H0 H) with "[Rprev]") as "Rprev"; first eauto.
+  unfold refines_right.
+  rewrite <- fill_app.
+  iFrame.
+  unfold refines_right.
+  rewrite <- fill_app.
+  auto.
+Qed.
 
 Definition ret_one_plus : iexp := BinOp PlusOp (Val (LitV (heap_lang.LitInt 1%Z))) (Val (LitV (heap_lang.LitInt 0%Z))).
+
+Ltac try_pures := try apply pure_injrc; try apply pure_injlc; try apply pure_fst; try apply pure_snd; try apply pure_pairc; try apply pure_exec; try apply pure_recc; try apply pure_if_false; try apply pure_if_true; try apply pure_case_inr; try apply pure_case_inl; try apply pure_exec_fill; try apply pure_unop; try apply pure_binop; try apply pure_beta; try apply pure_eqop.
+
+Ltac step_pure_r ctx :=
+  let e' := fresh "e'" in
+  evar (e' : iexp);
+  viewshift_SEP 0 (@refines_right gName nspace ctx e');
+  first (
+    go_lower;
+    eapply (refines_right_pure_r _ _ _ _ _ [] 1);
+    [ try_pures | auto | auto]
+  );
+  simpl in e';
+  subst e'.
 
 Lemma one_plus_zero : semax_body Vprog Gprog f_returns_one (DECLARE _returns_one refines_heap_lang ret_one_plus
   (fun vVST vHL => !! (exists n : Z, vVST = Vint (Int.repr n) /\ vHL = LitV (heap_lang.LitInt n%Z)) && emp)%logic).
 Proof.
   unfold fspec, refines_heap_lang, refines.
   start_function.
+  unfold ret_one_plus.
+  step_pure_r ctx.
   forward.
   Exists (LitV (heap_lang.LitInt 1%Z)).
   Exists (Vint (Int.repr 1)).
-  entailer!. eauto.
-  unfold ret_one_plus.
-  iIntros "H".
-  (*How to step from here?*)
-  (*hint. side note, hint breaks!*)
-  (*change (bi_car mpredI) with mpred.*)
+  entailer!; eauto.
+  apply derives_refl.
+Qed.
