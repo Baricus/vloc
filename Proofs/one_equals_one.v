@@ -1,6 +1,6 @@
 Require Import Vloc.Lib.theory.
 
-Require Import Vloc.CCode.mvp.
+Require Import Vloc.CCode.ret_one.
 
 Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs.  mk_varspecs prog. Defined.
