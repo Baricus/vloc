@@ -195,7 +195,7 @@ Proof.
           rewrite lookup_singleton_ne in Htpk; auto.
       * auto.
     - intros Oldg.
-      inversion Oldg.
+      inv Oldg.
       rewrite insert_singleton.
       reflexivity.
   }
@@ -268,9 +268,6 @@ Proof.
 Qed.
 
 End lemmas.
-
-
-(* actual proofs! *)
 
 Context `{gName : own.gname, nspace : namespace}.
 
