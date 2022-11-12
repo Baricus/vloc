@@ -1,1 +1,6 @@
--Q ./c_progs/ C
+CCode/mvp.v
+Lib/full_mvp.v
+Proofs/one_equals_one.v
+
+-docroot .
+-R . Vloc
