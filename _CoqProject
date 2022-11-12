@@ -1,5 +1,5 @@
 CCode/mvp.v
-Lib/full_mvp.v
+Lib/theory.v
 Proofs/one_equals_one.v
 
 -docroot .
