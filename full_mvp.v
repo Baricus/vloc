@@ -279,7 +279,7 @@ End lemmas.
 
 Context `{gName : own.gname, nspace : namespace}.
 
-Ltac try_pures := try apply pure_injrc; try apply pure_injlc; try apply pure_fst; try apply pure_snd; try apply pure_pairc; try apply pure_exec; try apply pure_recc; try apply pure_if_false; try apply pure_if_true; try apply pure_case_inr; try apply pure_case_inl; try apply pure_exec_fill; try apply pure_unop; try apply pure_binop; try apply pure_beta; try apply pure_eqop.
+Ltac try_pures := first [apply pure_injrc | apply pure_injlc | apply pure_fst | apply pure_snd | apply pure_pairc | apply pure_exec | apply pure_recc | apply pure_if_false | apply pure_if_true | apply pure_case_inr | apply pure_case_inl | apply pure_exec_fill | apply pure_unop | apply pure_binop | apply pure_beta | apply pure_eqop].
 
 Ltac step_pure_r ctx :=
   let e' := fresh "e'" in
@@ -319,6 +319,24 @@ Qed.
 Definition ret_one_plus : iexp := BinOp PlusOp (Val (LitV (heap_lang.LitInt 1%Z))) (Val (LitV (heap_lang.LitInt 0%Z))).
 
 Lemma one_plus_zero : semax_body Vprog Gprog f_returns_one (DECLARE _returns_one refines_heap_lang ret_one_plus
+  (fun vVST vHL => !! (exists n : Z, vVST = Vint (Int.repr n) /\ vHL = LitV (heap_lang.LitInt n%Z)) && emp)%logic).
+Proof.
+  unfold fspec, refines_heap_lang, refines.
+  start_function.
+  unfold ret_one_plus.
+  step_pure_r ctx.
+  forward.
+  Exists (LitV (heap_lang.LitInt 1%Z)).
+  Exists (Vint (Int.repr 1)).
+  entailer!; eauto.
+  apply derives_refl.
+Qed.
+
+Definition ret_one_min_plus : iexp := BinOp PlusOp 
+  (BinOp MinusOp (Val (LitV (heap_lang.LitInt 1%Z)))  (Val (LitV (heap_lang.LitInt 1%Z))))
+  (Val (LitV (heap_lang.LitInt 0%Z))).
+
+Lemma one_plus_zero' : semax_body Vprog Gprog f_returns_one (DECLARE _returns_one refines_heap_lang ret_one_min_plus
   (fun vVST vHL => !! (exists n : Z, vVST = Vint (Int.repr n) /\ vHL = LitV (heap_lang.LitInt n%Z)) && emp)%logic).
 Proof.
   unfold fspec, refines_heap_lang, refines.
