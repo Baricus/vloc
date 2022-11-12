@@ -31,7 +31,7 @@ From iris.proofmode Require Import
      reduction.
 
 (*Not needed currently *)
-Require Import Top.mvp.
+Require Import C.mvp.
 
 Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs.  mk_varspecs prog. Defined.
