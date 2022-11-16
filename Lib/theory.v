@@ -34,7 +34,8 @@ From iris.proofmode Require Export
 Section refinement.
 
 (* declare context; a name for the state, the location type, and the ectxi language *)
-Context `{gName : own.gname, nspace : namespace}.
+Class refines_ctx := { gName : own.gname; nspace : namespace }.
+Context `{ref_ctx: refines_ctx}.
 
 (*define shorthand *)
 Definition ival := heap_lang.val.
@@ -99,7 +100,7 @@ End refinement.
 
 Section lemmas.
 
-Context `{gName : own.gname, nspace : namespace}.
+Context `{ref_ctx: refines_ctx}.
 
 Lemma tpool_lookup tp j : to_tpool tp !! j = Some <$> tp !! j.
 Proof.
@@ -163,7 +164,7 @@ Lemma step_pure E j K e e' (P : Prop) n :
   P →
   PureExec P n e e' →
   nclose nspace ⊆ E →
-  @spec_ctx gName nspace * @tpool_mapsto gName j (fill K e) |-- |={E}=> @spec_ctx gName nspace ∗ @tpool_mapsto gName j (fill K e').
+  spec_ctx * tpool_mapsto j (fill K e) |-- |={E}=> spec_ctx ∗ tpool_mapsto j (fill K e').
 Proof.
   iIntros (HP Hex ?) "[#Hspec Hj]". iFrame "Hspec".
   iDestruct "Hspec" as (ρ) "Hspec".
@@ -253,8 +254,8 @@ Qed.
 Lemma refines_right_pure_r e e' Φ E j K' n:
   PureExec Φ n e e' ->  Φ ->
   nclose nspace ⊆ E ->
-  (@refines_right gName nspace j (ectxi_language.fill K' e)) |-- 
-    |={E}=> (@refines_right gName nspace j (ectxi_language.fill K' e') ).
+  (refines_right j (ectxi_language.fill K' e)) |-- 
+    |={E}=> (refines_right j (ectxi_language.fill K' e') ).
 Proof.
   intros.
   iIntros "Rprev".
@@ -269,14 +270,32 @@ Qed.
 
 End lemmas.
 
-Context `{gName : own.gname, nspace : namespace}.
 
-#[export] Ltac try_pures := first [apply pure_injrc | apply pure_injlc | apply pure_fst | apply pure_snd | apply pure_pairc | apply pure_exec | apply pure_recc | apply pure_if_false | apply pure_if_true | apply pure_case_inr | apply pure_case_inl | apply pure_exec_fill | apply pure_unop | apply pure_binop | apply pure_beta | apply pure_eqop].
+#[export] Ltac try_pures := first [
+     apply pure_injrc 
+   | apply pure_injlc 
+   | apply pure_fst 
+   | apply pure_snd 
+   | apply pure_pairc 
+   | apply (pure_recc _) (* allows inferrence? *)
+   | apply pure_if_false 
+   | apply pure_if_true 
+   | apply pure_case_inr 
+   | apply pure_case_inl 
+   | apply pure_unop 
+   | apply pure_binop 
+   | apply pure_beta 
+   | apply pure_eqop
+       (* since we're reshaping, this shouldn't be needed *)
+   (*| apply pure_exec_fill *)
+       (*I shouldn't need this one, I think?*)
+   (*| apply pure_exec*)
+  ].
 
 #[export] Ltac step_pure_r ctx :=
   let e' := fresh "e'" in
   evar (e' : iexp);
-  viewshift_SEP 0 (@refines_right gName nspace ctx e');
+  viewshift_SEP 0 (refines_right ctx e');
   first (
     go_lower;
     eapply (refines_right_pure_r _ _ _ _ _ [] 1);
@@ -284,4 +303,3 @@ Context `{gName : own.gname, nspace : namespace}.
   );
   simpl in e';
   subst e'.
-
