@@ -45,7 +45,7 @@ Definition iexp := heap_lang.expr.
 Definition tpool_ghost := (gmap_ghost (K:=nat) (A:=(exclusive_PCM iexp))).
 (*This feels weird; why does gmap_ghost take a Type?  I hope this works *)
 Definition heap_ghost := (gmap_ghost (K:=loc) (A:=(@pos_PCM (discrete_PCM (option ival))))). (*(@pos_PCM (discrete_PCM (option ival)))).*)
-Compute @G heap_ghost. (*it has the right type at least*)
+(*Compute @G heap_ghost. [>it has the right type at least<]*)
 Definition spec_ghost := prod_PCM tpool_ghost heap_ghost.
 
 (*The reference has no share, so we can't combine it*)
@@ -53,7 +53,7 @@ Definition InvGhost (map : @G spec_ghost) := @ghost_reference spec_ghost map gNa
 Definition UsrGhost (map : @G spec_ghost) := EX s, (@ghost_part spec_ghost s map gName).
 
 (*convert list of expressions to thread pool*)
-Compute @G tpool_ghost.
+(*Compute @G tpool_ghost.*)
 Definition to_tpool (exps : list iexp) : @G tpool_ghost
   := Some <$> (map_seq 0 exps).
 
@@ -83,19 +83,6 @@ Record ref_id : Set := RefId { tp_id : nat;  tp_ctx : list ectx_item }.
 Definition refines_right (r : ref_id) (e : iexp) := 
   (spec_ctx * (tp_id r) |=> (fill (tp_ctx r) e))%logic.
 
-Definition refines f2 A : funspec :=
-  WITH gv: globals, ctx: ref_id
-  PRE [ (* types of function parameters *) ]
-    PROP()
-    PARAMS((* NOTE: how to handle parameters *))
-    GLOBALS((* do we need anything to correlate globals and Context? Hopefully not *))
-    SEP(refines_right ctx f2)
-  POST [ tint ] (* NOTE: type!!! A map of iris types to vst types? *)
-    EX v' : ival, EX v : val,
-    PROP()
-    RETURN(v)
-    SEP(refines_right ctx (ectxi_language.of_val v') * A v v').
-
 End refinement.
 
 Section lemmas.
@@ -113,7 +100,7 @@ Proof. rewrite tpool_lookup fmap_Some. naive_solver. Qed.
 Hint Resolve tpool_lookup_Some : core.
 
 (* Borrowed from spec_ra *)
-Compute @G tpool_ghost.
+(*Compute @G tpool_ghost.*)
 Lemma to_tpool_insert tp (j:nat) (e:iexp) :
   (j < length tp)%nat →
   to_tpool (<[j:=e]> tp) = <[j:=Some e]> (to_tpool tp).
@@ -294,12 +281,21 @@ End lemmas.
 
 #[export] Ltac step_pure_r ctx :=
   let e' := fresh "e'" in
-  evar (e' : iexp);
-  viewshift_SEP 0 (refines_right ctx e');
-  first (
-    go_lower;
-    eapply (refines_right_pure_r _ _ _ _ _ [] 1);
-    [ try_pures | auto | auto]
-  );
-  simpl in e';
-  subst e'.
+  match goal with
+  | |- context[refines_right ctx ?expr] => 
+      reshape_expr expr ltac:(fun K e => 
+        replace expr with (fill K e) by (by rewrite ? fill_app);
+        evar (e' : iexp);
+        viewshift_SEP 0 (refines_right ctx (fill K e'));
+        first (
+          go_lower; 
+          eapply (refines_right_pure_r e e' _ _ _ K 1);
+          [try_pures | auto | auto]
+        );
+        simpl in e';
+        subst e';
+        simpl 
+        )
+  | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+  end;
+  simpl.
