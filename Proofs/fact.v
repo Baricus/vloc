@@ -6,7 +6,7 @@ Import proofmode notation.
 
 Definition factI : heap_lang.expr :=
   rec: "factI" "n" :=
-    if: "n" = #0 then #1 else "factI" * ("n" - #1)
+    if: "n" < #1 then #1 else "factI" * ("n" - #1)
     .
 
 End iris.
@@ -27,7 +27,7 @@ Definition fspec :=
   DECLARE _factorial
   WITH gv: globals, ctx: ref_id, n : Z
   PRE [ tint ]
-    PROP()
+    PROP((n <= Int.max_signed)%Z)
     PARAMS(Vint (Int.repr n))
     GLOBALS()
     SEP(refines_right ctx (App iris.factI (Val (LitV (LitInt n)))))
@@ -39,14 +39,41 @@ Definition fspec :=
 
 Definition Gprog : funspecs := [fspec].
 
-Ltac print_goal := match goal with
-                   | |- ?p => idtac "GOAL IS: " p
-                   end.
-
 Lemma one_plus_zero : semax_body Vprog Gprog f_factorial fspec.
 Proof.
   start_function. 
   step_pure_r ctx.
   forward.
-  step_pure_r ctx.
+  destruct (eq_dec n 0).
+  - forward_for_simple_bound n (EX i:Z,
+      PROP()
+      LOCAL(temp _acc (Vint (Int.repr 1)); temp _n (Vint (Int.repr n)))
+      SEP(refines_right ctx (App
+             (Val
+                (RecV "factI" "n"
+                   (If (BinOp LtOp (Var "n") (Val (LitV (LitInt 1))))
+                      (Val (LitV (LitInt 1)))
+                      (BinOp MultOp (Var "factI")
+                         (BinOp MinusOp (Var "n") (Val (LitV (LitInt 1))))))))
+             (Val (LitV (LitInt n)))))
+    ).
+    entailer!.
+    lia.
+    step_pure_r ctx.
+    step_pure_r ctx.
+    step_pure_r ctx.
+    step_pure_r ctx.
+    forward.
+    Exists (LitV (heap_lang.LitInt 1%Z)).
+    Exists (Vint (Int.repr 1)).
+    iIntros "H".
+    iSplit; first iPureIntro; auto.
+    iSplit; last iPureIntro; eauto.
+
+  - forward_for_simple_bound n (EX i:Z, 
+      PROP()
+      LOCAL(temp _acc (Vint (Int.repr 1)); temp _n (Vint (Int.repr n)))
+      SEP()
+    )%assert.
+
 Admitted.

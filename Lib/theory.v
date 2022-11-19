@@ -258,44 +258,65 @@ Qed.
 End lemmas.
 
 
-#[export] Ltac try_pures := first [
+#[local] Ltac try_pures e' := first [
      apply pure_injrc 
    | apply pure_injlc 
    | apply pure_fst 
    | apply pure_snd 
    | apply pure_pairc 
    | apply (pure_recc _) (* allows inferrence? *)
-   | apply pure_if_false 
-   | apply pure_if_true 
+   (* needed to ensure we can properly infer the true and false cases for some reason *)
+   | match goal with
+     | |- context [If (Val (LitV (LitBool ?b))) ?t ?f] => 
+         subst e'; first [apply pure_if_false | apply pure_if_true]
+     end
+   (*| apply pure_if_true*)
+   (*| apply pure_if_false*)
    | apply pure_case_inr 
    | apply pure_case_inl 
    | apply pure_unop 
    | apply pure_binop 
-   | apply pure_beta 
+   (* Removes the goal created by pure_beta? *)
+   | apply pure_beta; apply AsRecV_recv
    | apply pure_eqop
        (* since we're reshaping, this shouldn't be needed *)
    (*| apply pure_exec_fill *)
        (*I shouldn't need this one, I think?*)
    (*| apply pure_exec*)
+   (* TODO: figure out how to actually fail with this *)
+   | fail "Could not find a pure step to take (no pure_ tactic found)"
   ].
 
 #[export] Ltac step_pure_r ctx :=
   let e' := fresh "e'" in
-  match goal with
-  | |- context[refines_right ctx ?expr] => 
-      reshape_expr expr ltac:(fun K e => 
-        replace expr with (fill K e) by (by rewrite ? fill_app);
-        evar (e' : iexp);
-        viewshift_SEP 0 (refines_right ctx (fill K e'));
-        first (
-          go_lower; 
-          eapply (refines_right_pure_r e e' _ _ _ K 1);
-          [try_pures | auto | auto]
-        );
-        simpl in e';
-        subst e';
-        simpl 
-        )
-  | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+  let Hcond := fresh "Hcond" in
+    lazymatch goal with
+    (* if we have a decision, make it before we try to step further *)
+    | |- context [ bool_decide ?cond ] => 
+        destruct (bool_decide cond) eqn:Hcond;
+        [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
+        try lia;
+        clear Hcond
+    (* otherwise, try to step to the next instruction *)
+    | |- context[refines_right ctx ?expr] => 
+        reshape_expr expr ltac:(fun K e => 
+          replace expr with (fill K e) by (by rewrite ? fill_app);
+          evar (e' : iexp);
+          viewshift_SEP 0 (refines_right ctx (fill K e'));
+          first (
+            go_lower; 
+            eapply (refines_right_pure_r e e' _ _ _ K 1);
+            [try_pures e' | auto | auto]
+          );
+          simpl in e';
+          subst e';
+          simpl 
+          )
+    | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
   end;
   simpl.
+
+
+#[export] Ltac print_goal := match goal with
+                   | |- ?p => idtac "GOAL IS: " p
+                   end.
