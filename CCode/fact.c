@@ -1,9 +1,7 @@
 int factorial(int n) {
-	int acc = 1;
-
-	for (int i = 0; i < n; ++i) {
-		acc *= (n - i);		
+	if (n < 1) {
+		return 1;
 	}
 
-	return acc;
+	return n * factorial(n-1);
 }

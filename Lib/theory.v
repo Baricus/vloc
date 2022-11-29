@@ -80,6 +80,9 @@ Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
 (*ref id maps references *)
 Record ref_id : Set := RefId { tp_id : nat;  tp_ctx : list ectx_item }.
 
+Definition add_to_ctx id (ctx : list ectx_item) : ref_id :=
+  RefId (tp_id id) (ctx ++ tp_ctx id).
+
 Definition refines_right (r : ref_id) (e : iexp) := 
   (spec_ctx * (tp_id r) |=> (fill (tp_ctx r) e))%logic.
 
@@ -88,6 +91,14 @@ End refinement.
 Section lemmas.
 
 Context `{ref_ctx: refines_ctx}.
+
+Lemma refines_right_add_ctx ref K e :
+  (refines_right ref (fill K e) = refines_right (add_to_ctx ref K) e).
+Proof.
+  unfold add_to_ctx, refines_right; simpl.
+  rewrite fill_app.
+  auto.
+Qed.
 
 Lemma tpool_lookup tp j : to_tpool tp !! j = Some <$> tp !! j.
 Proof.
@@ -255,16 +266,31 @@ Proof.
   auto.
 Qed.
 
-End lemmas.
+Lemma refines_right_split e j K E:
+  nclose nspace ⊆ E →
+  (refines_right j (ectxi_language.fill K e) |-- 
+  |={E}=> (refines_right j (e))).
+Proof.
+  intros.
+  iIntros "[#ctx tpool]".
+  unfold refines_right.
+  iModIntro.
+  iSplit; auto.
+  iDestruct "ctx" as (ρ) "ctx".
+  unfold spec_inv.
+Admitted.
 
+End lemmas.
 
 #[local] Ltac try_pures e' := first [
      apply pure_injrc 
    | apply pure_injlc 
+   | apply pure_unop 
+   | apply pure_binop 
    | apply pure_fst 
    | apply pure_snd 
    | apply pure_pairc 
-   | apply (pure_recc _) (* allows inferrence? *)
+
    (* needed to ensure we can properly infer the true and false cases for some reason *)
    | match goal with
      | |- context [If (Val (LitV (LitBool ?b))) ?t ?f] => 
@@ -274,8 +300,6 @@ End lemmas.
    (*| apply pure_if_false*)
    | apply pure_case_inr 
    | apply pure_case_inl 
-   | apply pure_unop 
-   | apply pure_binop 
    (* Removes the goal created by pure_beta? *)
    | apply pure_beta; apply AsRecV_recv
    | apply pure_eqop
@@ -283,6 +307,7 @@ End lemmas.
    (*| apply pure_exec_fill *)
        (*I shouldn't need this one, I think?*)
    (*| apply pure_exec*)
+   | apply (pure_recc _) (* allows inferrence? *)
    (* TODO: figure out how to actually fail with this *)
    | fail "Could not find a pure step to take (no pure_ tactic found)"
   ].
@@ -298,7 +323,7 @@ End lemmas.
         try lia;
         clear Hcond
     (* otherwise, try to step to the next instruction *)
-    | |- context[refines_right ctx ?expr] => 
+    | |- context[refines_right ?ctx ?expr] => 
         reshape_expr expr ltac:(fun K e => 
           replace expr with (fill K e) by (by rewrite ? fill_app);
           evar (e' : iexp);
