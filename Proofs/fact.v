@@ -119,12 +119,18 @@ Proof.
   Intros ret.
   destruct ret as [[rn iret] vret]; simpl; simpl in H1. 
   rewrite <- refines_right_add_ctx; simpl.
+  unfold nat_relate in H1.
+  destruct H1 as [Hvst Hiris]; subst.
+  step_pure_r ctx.
   forward.
-  - unfold nat_relate in H1; destruct H1 as [Hl Hr].
-    subst.
-    entailer!.
+  - entailer!.
     (* TODO: how to get bounds? I can try to add it to the implication but then other things break *)
     admit.
-  - unfold nat_relate in H1; destruct H1 as [Hl Hr].
-    Exists 
+  - Exists (n * rn)%Z.
+    unfold nat_relate.
+    Exists (LitV (LitInt (n * rn))).
+    Exists (Vint (Int.repr (n * rn))).
+    simpl.
+    entailer!.
+    (* again, I need bounds to solve this *)
 Admitted.
