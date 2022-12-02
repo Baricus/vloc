@@ -3,12 +3,13 @@ From iris.heap_lang Require proofmode notation.
 Require compcert.lib.Integers.
 Module iris.
 
+(* used for our modulus *)
 Import compcert.lib.Integers.
 Import proofmode notation.
 
 Definition factI : heap_lang.val :=
   rec: "factI" "n" :=
-    if: "n" < #1 then #1 else ("n" * "factI" ("n" - #1)) `rem` #(Int.max_unsigned)
+    if: "n" < #1 then #1 else ("n" * "factI" ("n" - #1)) `rem` #(Int.modulus)
     .
 
 End iris.
@@ -23,7 +24,7 @@ Definition Vprog : varspecs.  mk_varspecs prog. Defined.
 
 
 Definition nat_relate vVST vHL :=
-  ((exists n, ((vVST = Vint (Int.repr n))%Z) /\ vHL = LitV (heap_lang.LitInt n%Z))).
+  ((exists (n : Z), (n >= 0)%Z /\ ((vVST = Vint (Int.repr n))%Z) /\ vHL = LitV (heap_lang.LitInt n%Z))).
 
 (* for simplicity, we're ignoring out of bounds errors here *)
 Fixpoint fact n : nat :=
@@ -52,27 +53,28 @@ Definition Gprog : funspecs := [fspec].
 Lemma fact_lemma : semax_body Vprog Gprog f_factorial fspec.
 Proof.
   start_function. 
+  evar (e : iexp).
   forward_if (
     PROP((Int.unsigned n >= 1)%Z) 
     LOCAL(temp _n (Vint n)) 
-    SEP(refines_right ctx
-       (BinOp RemOp
-          (BinOp MultOp (Val (LitV (LitInt (Int.unsigned n))))
-             (App
-                (Val
-                   (RecV "factI" "n"
-                      (If (BinOp LtOp (Var "n") (Val (LitV (LitInt 1))))
-                         (Val (LitV (LitInt 1)))
-                         (BinOp RemOp
-                            (BinOp MultOp (Var "n")
-                               (App (Var "factI")
-                                  (BinOp MinusOp (Var "n")
-                                     (Val (LitV (LitInt 1))))))
-                            (Val (LitV (LitInt Int.max_unsigned)))))))
-                (BinOp MinusOp (Val (LitV (LitInt (Int.unsigned n))))
-                   (Val (LitV (LitInt 1))))))
-          (Val (LitV (LitInt Int.max_unsigned)))))
-  ).
+    SEP(refines_right ctx e)).
+       (*(BinOp RemOp*)
+          (*(BinOp MultOp (Val (LitV (LitInt (Int.unsigned n))))*)
+             (*(App*)
+                (*(Val*)
+                   (*(RecV "factI" "n"*)
+                      (*(If (BinOp LtOp (Var "n") (Val (LitV (LitInt 1))))*)
+                         (*(Val (LitV (LitInt 1)))*)
+                         (*(BinOp RemOp*)
+                            (*(BinOp MultOp (Var "n")*)
+                               (*(App (Var "factI")*)
+                                  (*(BinOp MinusOp (Var "n")*)
+                                     (*(Val (LitV (LitInt 1))))))*)
+                            (*(Val (LitV (LitInt Int.modulus)))))))*)
+                (*(BinOp MinusOp (Val (LitV (LitInt (Int.unsigned n))))*)
+                   (*(Val (LitV (LitInt 1))))))*)
+          (*(Val (LitV (LitInt Int.modulus)))))*)
+  (*).*)
   (* n is zero or less *)
   {
     (* step hl to right form *)
@@ -84,22 +86,25 @@ Proof.
     Exists (Vint (Int.repr 1)).
     entailer!.
     unfold nat_relate.
-    eauto.
+    exists 1%Z; split; try lia; eauto.
   }
   {
     (* step hl through 1 cycle *)
     do 4 step_pure_r ctx.
     forward.
     unfold iris.factI.
+    unfold e.
     entailer!.
+    apply derives_refl.
   }
+  subst e.
   Intros.
   step_pure_r ctx.
-  forward_call (gv, add_to_ctx ctx ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n))))] ++ [BinOpLCtx RemOp ((LitV (LitInt Int.max_unsigned)))]), (Int.sub n Int.one)); try lia.
+  forward_call (gv, add_to_ctx ctx ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n)))); BinOpLCtx RemOp ((LitV (LitInt Int.modulus)))]), (Int.sub n Int.one)); try lia.
   {
     unfold iris.factI.
     replace (BinOp _ _ _) with (
-    fill ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n))))] ++ [BinOpLCtx RemOp ((LitV (LitInt Int.max_unsigned)))])
+    fill ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n)))); BinOpLCtx RemOp ((LitV (LitInt Int.modulus)))])
     (App
          (Val
             (RecV "factI" "n"
@@ -109,41 +114,44 @@ Proof.
                      (BinOp MultOp (Var "n")
                         (App (Var "factI")
                            (BinOp MinusOp (Var "n") (Val (LitV (LitInt 1))))))
-                     (Val (LitV (LitInt Int.max_unsigned)))))))
+                     (Val (LitV (LitInt Int.modulus)))))))
                      (Val (LitV (LitInt (Int.unsigned n - 1)))))
     ) by by rewrite ? fill_app.
+
     rewrite refines_right_add_ctx.
     rewrite Int.unsigned_sub_borrow.
     rewrite ? Int.unsigned_repr; try rep_lia.
     unfold Int.sub_borrow; simpl.
     rewrite if_false.
     {
-    rewrite ? Int.unsigned_repr; try rep_lia.
-    rewrite Z.add_0_r.
-    cancel.
-  }
-    rewrite ? Int.unsigned_repr; try rep_lia.
-  }
+      rewrite ? Int.unsigned_repr; try rep_lia.
+      rewrite Z.add_0_r.
+      cancel.
+    }
+      rewrite ? Int.unsigned_repr; try rep_lia.
+    }
   (* extract recursive value *)
   Intros ret.
   destruct ret as [iret vret]; simpl; simpl in H0. 
   rewrite <- refines_right_add_ctx; simpl.
   unfold nat_relate in H0.
-  destruct H0 as [rn [Hvst Hiris]]; subst.
-  step_pure_r ctx.
+  destruct H0 as [rn [HrnPos [Hvst Hiris]]]; subst.
+  do 2 step_pure_r ctx.
   forward.
-  entailer!.
-  unfold nat_relate.
-  Exists (LitV (LitInt (Int.unsigned n * rn))).
+  Exists (LitV (LitInt ((Int.unsigned n * rn) `rem` Int.modulus))).
   Exists (Vint (Int.mul n (Int.repr rn))).
   simpl.
   entailer!.
-  exists (Int.unsigned n * rn)%Z.
-  split.
-  - unfold Int.mul.
-    rewrite Int.unsigned_repr; try rep_lia; auto.
-
-    admit.
-  - auto.
-  (* again, I need bounds to solve this *)
-Admitted.
+  exists ((Int.unsigned n * rn) `rem` Int.modulus)%Z.
+  assert (0 <= (Int.unsigned n * rn) `rem` Int.modulus < Int.modulus)%Z. 
+  { apply Z.rem_bound_pos_pos; try lia. apply Z.gt_lt. apply Int.modulus_pos. }
+  split; try lia.
+  split; auto.
+  (* prove that the remainder does nothing here *)
+  rewrite Z.rem_mod_nonneg; try lia.
+  rewrite <- (Int.repr_unsigned n).
+  rewrite mul_repr.
+  rewrite <- Int.unsigned_repr_eq.
+  rewrite ? Int.repr_unsigned.
+  reflexivity.
+Qed.
