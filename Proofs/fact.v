@@ -26,6 +26,12 @@ Definition Vprog : varspecs.  mk_varspecs prog. Defined.
 Definition nat_relate vVST vHL :=
   ((exists (n : Z), (n >= 0)%Z /\ ((vVST = Vint (Int.repr n))%Z) /\ vHL = LitV (heap_lang.LitInt n%Z))).
 
+Lemma nat_relate_n n :
+  (n >= 0)%Z -> nat_relate (Vint (Int.repr n)) (LitV (heap_lang.LitInt n%Z)).
+Proof.
+  exists n; repeat split; auto.
+Qed.
+
 (* for simplicity, we're ignoring out of bounds errors here *)
 Fixpoint fact n : nat :=
   match n with
@@ -85,8 +91,8 @@ Proof.
     Exists (LitV (heap_lang.LitInt 1%Z)).
     Exists (Vint (Int.repr 1)).
     entailer!.
-    unfold nat_relate.
-    exists 1%Z; split; try lia; eauto.
+    apply nat_relate_n.
+    lia.
   }
   {
     (* step hl through 1 cycle *)
@@ -103,6 +109,7 @@ Proof.
   forward_call (gv, add_to_ctx ctx ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n)))); BinOpLCtx RemOp ((LitV (LitInt Int.modulus)))]), (Int.sub n Int.one)); try lia.
   {
     unfold iris.factI.
+    (* adding existentials here messes with fill_app *)
     replace (BinOp _ _ _) with (
     fill ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n)))); BinOpLCtx RemOp ((LitV (LitInt Int.modulus)))])
     (App
@@ -117,18 +124,17 @@ Proof.
                      (Val (LitV (LitInt Int.modulus)))))))
                      (Val (LitV (LitInt (Int.unsigned n - 1)))))
     ) by by rewrite ? fill_app.
-
     rewrite refines_right_add_ctx.
     rewrite Int.unsigned_sub_borrow.
     rewrite ? Int.unsigned_repr; try rep_lia.
     unfold Int.sub_borrow; simpl.
     rewrite if_false.
     {
-      rewrite ? Int.unsigned_repr; try rep_lia.
+      rewrite ? Int.unsigned_repr; [ |rep_lia].
       rewrite Z.add_0_r.
       cancel.
     }
-      rewrite ? Int.unsigned_repr; try rep_lia.
+      rewrite ? Int.unsigned_repr; rep_lia.
     }
   (* extract recursive value *)
   Intros ret.
@@ -136,8 +142,10 @@ Proof.
   rewrite <- refines_right_add_ctx; simpl.
   unfold nat_relate in H0.
   destruct H0 as [rn [HrnPos [Hvst Hiris]]]; subst.
+  (* step both programs to completion *)
   do 2 step_pure_r ctx.
   forward.
+  (* prove equivalence *)
   Exists (LitV (LitInt ((Int.unsigned n * rn) `rem` Int.modulus))).
   Exists (Vint (Int.mul n (Int.repr rn))).
   simpl.
@@ -152,6 +160,6 @@ Proof.
   rewrite <- (Int.repr_unsigned n).
   rewrite mul_repr.
   rewrite <- Int.unsigned_repr_eq.
-  rewrite ? Int.repr_unsigned.
+  rewrite ! Int.repr_unsigned.
   reflexivity.
 Qed.
