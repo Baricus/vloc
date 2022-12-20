@@ -1,10 +1,14 @@
-CCode/ret_one.v
-CCode/fact.v
 
+Lib/core.v
+Lib/heap.v
+Lib/pure.v
+Lib/tactics.v
 Lib/theory.v
 
-Proofs/one_equals_one.v
 Proofs/fact.v
+Proofs/one_equals_one.v
+
 
 -docroot .
 -R . Vloc
+
