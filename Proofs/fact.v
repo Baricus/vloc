@@ -106,8 +106,10 @@ Proof.
   subst e.
   Intros.
   step_pure_r ctx.
-  forward_call (gv, add_to_ctx ctx ([BinOpRCtx MultOp (Val (LitV (LitInt (Int.unsigned n)))); BinOpLCtx RemOp ((LitV (LitInt Int.modulus)))]), (Int.sub n Int.one)); try lia.
+  evar (e : list ectx_item).
+  forward_call (gv, add_to_ctx ctx e, (Int.sub n Int.one)); try lia.
   {
+    subst e.
     unfold iris.factI.
     (* adding existentials here messes with fill_app *)
     replace (BinOp _ _ _) with (
@@ -132,7 +134,7 @@ Proof.
     {
       rewrite ? Int.unsigned_repr; [ |rep_lia].
       rewrite Z.add_0_r.
-      cancel.
+      ecancel.
     }
       rewrite ? Int.unsigned_repr; rep_lia.
     }
@@ -152,7 +154,7 @@ Proof.
   entailer!.
   exists ((Int.unsigned n * rn) `rem` Int.modulus)%Z.
   assert (0 <= (Int.unsigned n * rn) `rem` Int.modulus < Int.modulus)%Z. 
-  { apply Z.rem_bound_pos_pos; try lia. apply Z.gt_lt. apply Int.modulus_pos. }
+  { apply Z.rem_bound_pos_pos; try rep_lia. }
   split; try lia.
   split; auto.
   (* prove that the remainder does nothing here *)
