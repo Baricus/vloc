@@ -19,12 +19,25 @@ Context `{ref_ctx: refines_ctx}.
     join_sub {[j := Some e]} (to_tpool tp) → to_tpool tp !! j = (Some (Some e)).
   Proof. rewrite tpool_lookup. by move=> /tpool_singleton_included=> ->. Qed.
 
+(* Does this exist??? NOTE *)
+Instance eq_dec_loc : EqDec loc.
+Proof.
+Admitted.
+
 
 (* taken and modified from theories/logic/spec_rules.v *)
+(* Questions:
+    - Is (pos_to_Qp 1) equivalent to top?
+    - 
+
+   Notes:
+    ref is notation for (AllocN (Val (LitV 1%Z)))
+
+ *)
   Lemma step_alloc E j K e v :
     IntoVal e v →
     nclose nspace ⊆ E →
-    spec_ctx ∗ tpool_mapsto j (fill K (AllocN (of_val (LitV (LitInt 1%Z))) e)) ={E}=∗ ∃ l, spec_ctx ∗ tpool_mapsto j (fill K (of_val (LitV (LitLoc l)))) ∗ (heapS_mapsto l v).
+    spec_ctx ∗ tpool_mapsto j (fill K (AllocN (Val (LitV (LitInt 1%Z))) e)) ={E}=∗ ∃ l, spec_ctx ∗ tpool_mapsto j (fill K (Val (LitV (LitLoc l)))) ∗ (heapS_mapsto l v).
   Proof.
     iIntros (<-?) "[#Hinv Hj]". iFrame "Hinv".
     iDestruct "Hj" as (sh) "Hj".
@@ -39,8 +52,8 @@ Context `{ref_ctx: refines_ctx}.
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
     (*NOTE: updating heap! *)
     iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ 
-      (({[j := Some (fill K (Val (LitV (LitLoc l))))]}), to_heap gmap_empty) 
-      ((<[ j := Some (fill K (Val (LitV (LitLoc l)))) ]> (to_tpool tp)),  <[j := (Val v) ]> (to_heap (heap σ))))
+      (({[j := Some (fill K (Val (LitV (LitLoc l))))]}), to_heap (heap σ)) 
+      ((<[ j := Some (fill K (Val (LitV (LitLoc l)))) ]> (to_tpool tp)),  (<[l := (Val v) ]> (to_heap (heap σ)))))
         with "Hown") as ">Hown". 
       (* NOTE: This is nearly the same as pure, how do I generalize it? *)
     {
@@ -61,7 +74,23 @@ Context `{ref_ctx: refines_ctx}.
             rewrite lookup_empty.
             pose proof Htp k as Htpk.
             rewrite lookup_singleton_ne in Htpk; auto.
-        * admit.
+        * intros index.
+          destruct (eq_dec index l); subst.
+          + specialize (Hheap l).
+            rewrite lookup_fmap in Hheap. 
+            rewrite lookup_fmap in Hheap. 
+            rewrite Hl in Hheap.
+
+            rewrite lookup_fmap. 
+            rewrite Hl.
+            simpl in *.
+            inv Hheap; subst.
+            {
+              unfold to_heap.
+              (*rewrite (lookup_insert _ l (Val v)).*)
+              admit.
+            }
+            rewrite (lookup_insert _ l (Val v)).
       - intros Oldg.
         inv Oldg.
         rewrite insert_singleton.
