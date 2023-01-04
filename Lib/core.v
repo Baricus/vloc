@@ -41,29 +41,41 @@ Context `{ref_ctx: refines_ctx}.
 Definition ival := heap_lang.val.
 Definition iexp := heap_lang.expr.
 
-(*map => gmap*)
+(* the tpool is a map of numbers to expressions.  The "exclusive_PCM" is for ownership; 
+   it mirrors the vloc Excl *)
 Definition tpool_ghost := (gmap_ghost (K:=nat) (A:=(exclusive_PCM iexp))).
-(*This feels weird; why does gmap_ghost take a Type?  I hope this works *)
+(* the heap is another map, of locations (essentially just nats?) to a share of ownership of a value *)
 Definition heap_ghost := (gmap_ghost (K:=loc) (A:=(@pos_PCM (discrete_PCM (option ival))))). (*(@pos_PCM (discrete_PCM (option ival)))).*)
-(*Compute @G heap_ghost. [>it has the right type at least<]*)
+(* The whole ghost state is just the combination of both the tpool and heap ghost states *)
 Definition spec_ghost := prod_PCM tpool_ghost heap_ghost.
 
 (*The reference has no share, so we can't combine it*)
 Definition InvGhost (map : @G spec_ghost) := @ghost_reference spec_ghost map gName.
+(* NOTE: S is "some share" which may not be enough later!  It works for now *)
 Definition UsrGhost (map : @G spec_ghost) := ∃ s, (@ghost_part spec_ghost s map gName).
 
-(*convert list of expressions to thread pool*)
-(*Compute @G tpool_ghost.*)
+(* NOTE: G is the type of any ghost state; which is by default opaque
+    one way to show the actual type is below *)
+(*Compute @G spec_ghost.*)
+
+(* to_tpool
+    converts a list of expressions to a thread pool,
+    a map of thread indexes to their expressions 
+*)
 Definition to_tpool (exps : list iexp) : @G tpool_ghost
   := Some <$> (map_seq 0 exps).
 
-(*Converts a standard heap-lang heap to a form we can store it in VST*)
-(*Largely a function of keys to values*)
+(* to_heap
+    Converts the standard heap_lang heap to the heap_ghost type.  
+    This is largely just a reformatting to fit the form
+*)
 Definition to_heap (heap : gmap loc (option ival)) : @G heap_ghost :=
   fmap (λ v, (Some (fullshare, v))) heap.
 
 (* assert that we have a value in the heap *)
-Compute (@G spec_ghost).
+(* heapS_mapsto
+    An assertion that there is a value v in the heap at location l 
+*)
 Definition heapS_mapsto (l : loc) (v: ival) :=
   EX s, UsrGhost (to_tpool [], {[ l := Some (s, (Some v)) ]} ).
 
@@ -78,11 +90,17 @@ Definition spec_ctx : mpred :=
   (EX ρ, inv nspace (spec_inv ρ)). 
 
 (*Define our own singleton map and turn it to a VST map for the non-invariant side *)
+(* tpool_mapsto
+    an assertion that the expression e is thread j's (numbered as nat's) 
+*)
 Definition tpool_mapsto (j : nat) (e : iexp) := 
   UsrGhost ({[j := Some e]}, to_heap gmap_empty).
+(* TODO: figure out if this is actually exported? My bet is ... no *)
 Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
 
-(*ref id maps references *)
+(* ref_id
+    A context and associated thread identifier
+*)
 Record ref_id : Set := RefId { tp_id : nat;  tp_ctx : list ectx_item }.
 
 Definition add_to_ctx id (ctx : list ectx_item) : ref_id :=
