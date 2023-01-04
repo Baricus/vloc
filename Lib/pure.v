@@ -4,6 +4,9 @@ Section lemmas.
 
 Context `{ref_ctx: refines_ctx}.
 
+(* refines_right_add_ctx
+    Filling is the same as adding something to the "forall K context" 
+*)
 Lemma refines_right_add_ctx ref K e :
   (refines_right ref (fill K e) = refines_right (add_to_ctx ref K) e).
 Proof.
@@ -12,18 +15,32 @@ Proof.
   auto.
 Qed.
 
+(* tpool_lookup 
+    to_tpool doesn't discard elements; for lookup's purpose it's just an extra Some
+*)
 Lemma tpool_lookup tp j : to_tpool tp !! j = Some <$> tp !! j.
 Proof.
   unfold to_tpool. rewrite lookup_fmap.
   by rewrite lookup_map_seq_0.
 Qed.
 
+(* tpool_lookup_Some
+    to_tpool doesn't add elements so the original tp and the tpool must agree
+*)
 Lemma tpool_lookup_Some tp j e : to_tpool tp !! j = Some (Some e) → tp !! j = Some e.
 Proof. rewrite tpool_lookup fmap_Some. naive_solver. Qed.
 Hint Resolve tpool_lookup_Some : core.
 
 (* Borrowed from spec_ra *)
+
+(* NOTE: G is horrible.  It's the type of the ghost state, but it's opaque by default!
+   Below is one way to see the actual type that G is. *)
 (*Compute @G tpool_ghost.*)
+
+(* to_tpool_insert
+    Inserting elements into the original tp is the same as inserting the elements
+    wrapped in "Some" to the tpool
+*)
 Lemma to_tpool_insert tp (j:nat) (e:iexp) :
   (j < length tp)%nat →
   to_tpool (<[j:=e]> tp) = <[j:=Some e]> (to_tpool tp).
@@ -33,6 +50,7 @@ Proof.
   - rewrite tpool_lookup lookup_insert_ne // list_lookup_insert_ne //.
     by rewrite tpool_lookup.
 Qed.
+(* various other versions of insertion with tpool *)
 Lemma to_tpool_insert' tp (j:nat) (e:iexp) :
   is_Some (to_tpool tp !! j) →
   to_tpool (<[j:=e]> tp) = <[j:=Some e]> (to_tpool tp).
@@ -83,6 +101,7 @@ Proof.
   iDestruct "Hj" as (sh) "Hj".
   iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as "%Hghost_join".
   iCombine "Hj Hown" as "Hghost_ref".
+  (* NOTE: this replaces the iris ghost-update entirely; we prove it's valid in the { } *)
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hghost_ref") as "Hghost_ref".
   iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ (({[j := Some (fill K e')]}),
                  to_heap gmap_empty) ((<[ j := Some (fill K e') ]> (to_tpool tp)), to_heap (heap σ))) with "Hghost_ref") as ">Hghost_ref". 
@@ -97,6 +116,7 @@ Proof.
           rewrite lookup_singleton.
           specialize (Htp j).
           rewrite lookup_singleton in Htp; rewrite lookup_insert.
+          (* inv is just like inversion *)
           inv Htp; constructor.
           inv H3; constructor.
           inv H4.
@@ -161,6 +181,9 @@ Proof.
       { apply list_lookup_insert. apply lookup_lt_is_Some; eauto. }
 Qed.
 
+(* refines_right_pure_r
+    We can take pure steps!
+*)
 Lemma refines_right_pure_r e e' Φ E j K' n:
   PureExec Φ n e e' ->  Φ ->
   nclose nspace ⊆ E ->
@@ -177,19 +200,5 @@ Proof.
   rewrite <- fill_app.
   auto.
 Qed.
-
-Lemma refines_right_split e j K E:
-  nclose nspace ⊆ E →
-  (refines_right j (ectxi_language.fill K e) |-- 
-  |={E}=> (refines_right j (e))).
-Proof.
-  intros.
-  iIntros "[#ctx tpool]".
-  unfold refines_right.
-  iModIntro.
-  iSplit; auto.
-  iDestruct "ctx" as (ρ) "ctx".
-  unfold spec_inv.
-Admitted.
 
 End lemmas.
