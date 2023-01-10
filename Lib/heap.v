@@ -46,16 +46,18 @@ Admitted.
     iInv nspace as (tp σ) ">[% Hown]" "Hclose".
     destruct (exist_fresh (dom (heap σ))) as [l Hl%not_elem_of_dom].
 
-    (* modification to use VST's update semantics *)
+    (* modification to use VST's update semantics rather than iris *)
     iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as "%Hghost_join".
     iCombine "Hj Hown" as "Hown".
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
     (*NOTE: updating heap! *)
     iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ 
       (({[j := Some (fill K (Val (LitV (LitLoc l))))]}), to_heap (heap σ)) 
-      ((<[ j := Some (fill K (Val (LitV (LitLoc l)))) ]> (to_tpool tp)),  (<[l := (Val v) ]> (to_heap (heap σ)))))
+      ((<[ j := Some (fill K (Val (LitV (LitLoc l)))) ]> (to_tpool tp)),  
+      (* NOTE: We need the "post-to-heap" version of the update here, not the original, so we include the share *)
+      (<[l := Some (fullshare, Some v) ]> (to_heap (heap σ)))))
         with "Hown") as ">Hown". 
-      (* NOTE: This is nearly the same as pure, how do I generalize it? *)
+      (* NOTE: This is nearly the same as pure at the start, how do I generalize it? *)
     {
       intros Gframe Hjoin.
       split.
@@ -75,6 +77,7 @@ Admitted.
             pose proof Htp k as Htpk.
             rewrite lookup_singleton_ne in Htpk; auto.
         * intros index.
+          (* NOTE: This whole approach feels wrong *)
           destruct (eq_dec index l); subst.
           + specialize (Hheap l).
             rewrite lookup_fmap in Hheap. 
@@ -84,13 +87,19 @@ Admitted.
             rewrite lookup_fmap. 
             rewrite Hl.
             simpl in *.
-            inv Hheap; subst.
+            (* QUESTION: What is the difference between these two?  I don't know how I got both *)
+            inv Hheap.
             {
-              unfold to_heap.
-              (*rewrite (lookup_insert _ l (Val v)).*)
+              rewrite H1.
+              rewrite lookup_insert.
+              (*NOTE: None None Some seems impossible to prove? *)
               admit.
             }
-            rewrite (lookup_insert _ l (Val v)).
+            {
+              rewrite lookup_insert.
+              admit.
+            }
+          + 
       - intros Oldg.
         inv Oldg.
         rewrite insert_singleton.
