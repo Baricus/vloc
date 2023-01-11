@@ -2,9 +2,8 @@ Require Import Vloc.Lib.core.
 Require Import Vloc.Lib.pure.
 
 Section heap.
-
+  
 Context `{ref_ctx: refines_ctx}.
-
 (* Some helper lemmas *)
 (* NOTE: what is the equivalent of cmra.included? *)
   Lemma tpool_singleton_included (tp : list iexp) (j : nat) (e : iexp) :
@@ -20,19 +19,15 @@ Context `{ref_ctx: refines_ctx}.
   Proof. rewrite tpool_lookup. by move=> /tpool_singleton_included=> ->. Qed.
 
 (* Does this exist??? NOTE *)
-Instance eq_dec_loc : EqDec loc.
-Proof.
-Admitted.
-
-
+(*Instance eq_dec_loc : EqDec loc.*)
+(*Proof.*)
+(*Admitted.*)
 (* taken and modified from theories/logic/spec_rules.v *)
 (* Questions:
     - Is (pos_to_Qp 1) equivalent to top?
     - 
-
    Notes:
     ref is notation for (AllocN (Val (LitV 1%Z)))
-
  *)
   Lemma step_alloc E j K e v :
     IntoVal e v →
@@ -51,15 +46,15 @@ Admitted.
     iCombine "Hj Hown" as "Hown".
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
     (*NOTE: updating heap! *)
-    iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _ 
-      (({[j := Some (fill K (Val (LitV (LitLoc l))))]}), to_heap (heap σ)) 
+    iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _
+      (({[j := Some (fill K (Val (LitV (LitLoc l))))]}), {[ l := Some (fullshare, Some v) ]}) 
       ((<[ j := Some (fill K (Val (LitV (LitLoc l)))) ]> (to_tpool tp)),  
       (* NOTE: We need the "post-to-heap" version of the update here, not the original, so we include the share *)
       (<[l := Some (fullshare, Some v) ]> (to_heap (heap σ)))))
         with "Hown") as ">Hown". 
       (* NOTE: This is nearly the same as pure at the start, how do I generalize it? *)
     {
-      intros Gframe Hjoin.
+      intros (tp_frame, heap_frame) Hjoin.
       split.
       - destruct Hjoin as [Htp Hheap].
         split; simpl in *.
@@ -76,33 +71,26 @@ Admitted.
             rewrite lookup_empty.
             pose proof Htp k as Htpk.
             rewrite lookup_singleton_ne in Htpk; auto.
-        * intros index.
-          (* NOTE: This whole approach feels wrong *)
-          destruct (eq_dec index l); subst.
+        * intros index. 
+          destruct (decide (index = l)); subst.
           + specialize (Hheap l).
             rewrite lookup_fmap in Hheap. 
             rewrite lookup_fmap in Hheap. 
             rewrite Hl in Hheap.
-
-            rewrite lookup_fmap. 
-            rewrite Hl.
-            simpl in *.
-            (* QUESTION: What is the difference between these two?  I don't know how I got both *)
-            inv Hheap.
-            {
-              rewrite H1.
-              rewrite lookup_insert.
-              (*NOTE: None None Some seems impossible to prove? *)
-              admit.
-            }
-            {
-              rewrite lookup_insert.
-              admit.
-            }
-          + 
+            rewrite lookup_singleton lookup_insert.
+            (* NOTE: what is the difference here? *)
+            inv Hheap; [rewrite H1|]; apply lower_None2.
+          + rewrite lookup_singleton_ne.
+            rewrite lookup_insert_ne; auto.
+            (* This does so much work I didn't believe it *)
+            specialize (Hheap index); auto.
+            auto.
       - intros Oldg.
         inv Oldg.
         rewrite insert_singleton.
+        unfold to_heap.
+        setoid_rewrite fmap_empty.
+        rewrite insert_empty.
         reflexivity.
     }
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
@@ -117,7 +105,12 @@ Admitted.
       (*by apply lookup_to_heap_None. }*)
     iExists l. 
     rewrite /UsrGhost /heapS_mapsto.
-    (* why does this work? *)
+    (* Split Hj into two pieces, one for the heap and one for the map *)
+    iApply (ghost_part_join _ _ _
+      ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, to_heap gmap_empty)
+      (EX s : share, UsrGhost (to_tpool [], {[l := Some (s, Some v)]}))
+    ).
+    (*NOTE: Why is this needed? *)
     iApply fupd_frame_l.
     iSplitL "Hj"; auto.
     rewrite /heapS_mapsto /=.
