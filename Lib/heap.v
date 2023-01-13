@@ -106,10 +106,23 @@ Context `{ref_ctx: refines_ctx}.
     iExists l. 
     rewrite /UsrGhost /heapS_mapsto.
     (* Split Hj into two pieces, one for the heap and one for the map *)
-    iApply (ghost_part_join _ _ _
+    iDestruct (ghost_part_join (P:=spec_ghost) _ _ _
       ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, to_heap gmap_empty)
-      (EX s : share, UsrGhost (to_tpool [], {[l := Some (s, Some v)]}))
-    ).
+      (to_tpool [], {[l := Some (fullshare, Some v)]})
+      ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, {[l := Some (fullshare, Some v)]})
+      gName
+    ) as "Hsplit"; eauto.
+    { 
+      unfold to_heap, to_tpool.
+      split; intros index; 
+      setoid_rewrite fmap_empty; rewrite lookup_empty; simpl.
+      - apply lower_None2.
+      - apply lower_None1.
+    }
+    { admit. (*NOTE: IMPOSSIBLE GOAL *) }
+    (*TODO: split "Hsplit" into the two pieces *)
+
+
     (*NOTE: Why is this needed? *)
     iApply fupd_frame_l.
     iSplitL "Hj"; auto.
