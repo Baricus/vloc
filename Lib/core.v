@@ -52,7 +52,7 @@ Definition spec_ghost := prod_PCM tpool_ghost heap_ghost.
 (*The reference has no share, so we can't combine it*)
 Definition InvGhost (map : @G spec_ghost) := @ghost_reference spec_ghost map gName.
 (* NOTE: S is "some share" which may not be enough later!  It works for now *)
-Definition UsrGhost (map : @G spec_ghost) := ∃ s, (@ghost_part spec_ghost s map gName).
+Definition UsrGhost (map : @G spec_ghost) := ∃ s, (!!(s ≠ emptyshare) * (@ghost_part spec_ghost s map gName))%logic.
 
 (* NOTE: G is the type of any ghost state; which is by default opaque
     one way to show the actual type is below *)
@@ -76,8 +76,8 @@ Definition to_heap (heap : gmap loc (option ival)) : @G heap_ghost :=
 (* heapS_mapsto
     An assertion that there is a value v in the heap at location l 
 *)
-Definition heapS_mapsto (l : loc) (v: ival) :=
-  EX s, UsrGhost (to_tpool [], {[ l := Some (s, (Some v)) ]} ).
+Definition heapS_mapsto (l : loc) (v: ival) (s : share) :=
+  UsrGhost (to_tpool [], {[ l := Some (s, (Some v)) ]} ).
 
 Definition spec_inv (c : cfg (heap_lang)) : mpred := 
     EX exp_list : list iexp, EX σ,

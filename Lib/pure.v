@@ -98,7 +98,8 @@ Proof.
   iDestruct "Hspec" as (ρ) "Hspec".
   iInv nspace as (tp σ) "[>Hrtc >Hown]" "Hclose".
   iDestruct "Hrtc" as %Hrtc.
-  iDestruct "Hj" as (sh) "Hj".
+  iDestruct "Hj" as (sh) "[Hnonempty Hj]".
+  iPure "Hnonempty" as shNonEmpty.
   iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as "%Hghost_join".
   iCombine "Hj Hown" as "Hghost_ref".
   (* NOTE: this replaces the iris ghost-update entirely; we prove it's valid in the { } *)
@@ -133,6 +134,7 @@ Proof.
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hghost_ref]") as "[Hj Hown]".
   iExists sh.
   iFrame "Hj". 
+
   iApply "Hclose".
   iNext.
   iExists (<[j:=fill K e']> tp), σ.
