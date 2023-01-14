@@ -133,8 +133,11 @@ Proof.
   }
   iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hghost_ref]") as "[Hj Hown]".
   iExists sh.
+  (* NOTE: I am not sure why I need to do this manually *)
+  (* pull out the pure fact to solve *)
+  iApply fupd_frame_l.
+  iSplitR. { auto. }
   iFrame "Hj". 
-
   iApply "Hclose".
   iNext.
   iExists (<[j:=fill K e']> tp), σ.
