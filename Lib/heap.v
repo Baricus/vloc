@@ -32,10 +32,11 @@ Context `{ref_ctx: refines_ctx}.
   Lemma step_alloc E j K e v :
     IntoVal e v →
     nclose nspace ⊆ E →
-    spec_ctx ∗ tpool_mapsto j (fill K (AllocN (Val (LitV (LitInt 1%Z))) e)) ={E}=∗ ∃ l, spec_ctx ∗ tpool_mapsto j (fill K (Val (LitV (LitLoc l)))) ∗ (heapS_mapsto l v).
+    spec_ctx ∗ tpool_mapsto j (fill K (AllocN (Val (LitV (LitInt 1%Z))) e)) ={E}=∗ ∃ l, spec_ctx ∗ tpool_mapsto j (fill K (Val (LitV (LitLoc l)))) ∗ (heapS_mapsto fullshare l v).
   Proof.
     iIntros (<-?) "[#Hinv Hj]". iFrame "Hinv".
-    iDestruct "Hj" as (sh) "Hj".
+    iDestruct "Hj" as (sh) "[Hne Hj]".
+    iPure "Hne" as shNE.
     rewrite /spec_ctx /tpool_mapsto /=. 
     iDestruct "Hinv" as (ρ) "Hinv".
     iInv nspace as (tp σ) ">[% Hown]" "Hclose".
@@ -93,6 +94,8 @@ Context `{ref_ctx: refines_ctx}.
         rewrite insert_empty.
         reflexivity.
     }
+    (*NOTE: We may actually need this *)
+    clear Hghost_join.
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
     (*iDestruct (own_valid_2 with "Hown Hj")*)
       (*as %[[?%tpool_singleton_included' _]%prod_included ?]%auth_both_valid_discrete.*)
@@ -106,32 +109,41 @@ Context `{ref_ctx: refines_ctx}.
     iExists l. 
     rewrite /UsrGhost /heapS_mapsto.
     (* Split Hj into two pieces, one for the heap and one for the map *)
-    iDestruct (ghost_part_join (P:=spec_ghost) _ _ _
+    specialize (Share.split sh). intros (shl, shr).
+    iDestruct (ghost_part_join (P:=spec_ghost) shl shr sh
       ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, to_heap gmap_empty)
       (to_tpool [], {[l := Some (fullshare, Some v)]})
       ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, {[l := Some (fullshare, Some v)]})
       gName
-    ) as "Hsplit"; eauto.
+    ) as "[_ Himpl ]"; eauto.
     { 
-      unfold to_heap, to_tpool.
+      apply split_join.
+      (* NOTE: how to prove this? *)
+      admit.
+    }
+    { 
       split; intros index; 
       setoid_rewrite fmap_empty; rewrite lookup_empty; simpl.
       - apply lower_None2.
       - apply lower_None1.
     }
-    { admit. (*NOTE: IMPOSSIBLE GOAL *) }
-    (*TODO: split "Hsplit" into the two pieces *)
+    { admit. (*NOTE: How do I split shares without bottom? *) }
+    { admit. (*NOTE: How do I split shares without bottom? *) }
+    (* Above gives us an implication to follow which we have to apply and break apart *)
+    iDestruct ("Himpl" with "Hj") as "[Htp Hheap]".
+    iClear "Himpl".
 
-
-    (*NOTE: Why is this needed? *)
     iApply fupd_frame_l.
-    iSplitL "Hj"; auto.
+    iSplitL "Htp".
+    { iExists shl; iFrame. admit. (*NOTE: shl needs to not be empty! *) }
     rewrite /heapS_mapsto /=.
-    iExists sh.
+    iExists shr.
     rewrite /UsrGhost.
-    iExists sh.
+    iApply fupd_frame_l; iSplitR; first admit. (* NOTE: shr same as shl *)
+    iFrame "Hheap".
     iApply "Hclose". iNext.
-    iExists (<[j:=fill K (# l)]> tp), (state_upd_heap <[l:=Some v]> σ).
+    iExists (<[j:=fill K (Val (LitV (LitLoc l)))]> tp), (state_upd_heap <[l:=Some v]> σ).
+
     rewrite to_heap_insert to_tpool_insert'; last eauto. iFrame. iPureIntro.
     eapply rtc_r, step_insert_no_fork; eauto.
     rewrite -state_init_heap_singleton. eapply AllocNS; first by lia.
