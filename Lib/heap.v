@@ -1,6 +1,22 @@
 Require Import Vloc.Lib.core.
 Require Import Vloc.Lib.pure.
 
+Lemma share_split_nonempty sh:
+  sh ≠ emptyshare -> fst (Share.split sh) ≠ emptyshare /\ snd (Share.split sh) ≠ emptyshare.
+Proof.
+  intros Hne.
+  remember ((Share.split sh).1) as shl.
+  remember ((Share.split sh).2) as shr.
+    split.
+    (* weirdly, connecting these via ; does not work *)
+    1,2: intros Hfalse;
+      specialize (Share.split_nontrivial) with shl shr sh; intros Hsnontriv;
+      subst;
+      specialize surjective_pairing with _ _ (Share.split sh); intros Hspliteq;
+      apply Hsnontriv in Hspliteq; last auto;
+      contradiction.
+Qed.
+
 Section heap.
   
 Context `{ref_ctx: refines_ctx}.
@@ -109,7 +125,14 @@ Context `{ref_ctx: refines_ctx}.
     iExists l. 
     rewrite /UsrGhost /heapS_mapsto.
     (* Split Hj into two pieces, one for the heap and one for the map *)
-    specialize (Share.split sh). intros (shl, shr).
+    remember ((Share.split sh).1) as shl.
+    remember ((Share.split sh).2) as shr.
+    (* prove that the shares can't be empty; we need this fact in multiple places *)
+    specialize (share_split_nonempty sh shNE).
+    intros HshrsNE; destruct HshrsNE as [HshlNE HshrNE].
+    rewrite <- Heqshl in HshlNE.
+    rewrite <- Heqshr in HshrNE.
+    (* now we know the shares are not empty everywhere *)
     iDestruct (ghost_part_join (P:=spec_ghost) shl shr sh
       ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, to_heap gmap_empty)
       (to_tpool [], {[l := Some (fullshare, Some v)]})
@@ -118,28 +141,31 @@ Context `{ref_ctx: refines_ctx}.
     ) as "[_ Himpl ]"; eauto.
     { 
       apply split_join.
-      (* NOTE: how to prove this? *)
-      admit.
+      subst; simpl.
+      (* why is this so hard to prove; you'd think auto would handle it *)
+      apply surjective_pairing.
     }
+    (* prove that the update joins properly *)
     { 
       split; intros index; 
       setoid_rewrite fmap_empty; rewrite lookup_empty; simpl.
       - apply lower_None2.
       - apply lower_None1.
     }
-    { admit. (*NOTE: How do I split shares without bottom? *) }
-    { admit. (*NOTE: How do I split shares without bottom? *) }
+
     (* Above gives us an implication to follow which we have to apply and break apart *)
     iDestruct ("Himpl" with "Hj") as "[Htp Hheap]".
     iClear "Himpl".
 
     iApply fupd_frame_l.
     iSplitL "Htp".
-    { iExists shl; iFrame. admit. (*NOTE: shl needs to not be empty! *) }
+    (* not an empty share *)
+    { iExists shl; iFrame; auto. }
     rewrite /heapS_mapsto /=.
     iExists shr.
     rewrite /UsrGhost.
-    iApply fupd_frame_l; iSplitR; first admit. (* NOTE: shr same as shl *)
+    (* also not an empty share *)
+    iApply fupd_frame_l; iSplitR; auto. 
     iFrame "Hheap".
     iApply "Hclose". iNext.
     iExists (<[j:=fill K (Val (LitV (LitLoc l)))]> tp), (state_upd_heap <[l:=Some v]> σ).
