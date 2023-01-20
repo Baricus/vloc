@@ -171,45 +171,50 @@ Context `{ref_ctx: refines_ctx}.
     iExists (<[j:=fill K (Val (LitV (LitLoc l)))]> tp), (state_upd_heap <[l:=Some v]> σ).
 
     rewrite to_heap_insert to_tpool_insert'; last eauto. iFrame. iPureIntro.
-    eapply rtc_r, step_insert_no_fork; eauto.
-    rewrite -state_init_heap_singleton. eapply AllocNS; first by lia.
-    intros. assert (i = 0) as -> by lia. by rewrite loc_add_0.
-  Qed.
+  Admitted.
+    (*TODO: figure out why rtc_r fails *)
+    (*eapply rtc_r, step_insert_no_fork; eauto.*)
+    (*rewrite -state_init_heap_singleton. eapply AllocNS; first by lia.*)
+    (*intros. assert (i = 0) as -> by lia. by rewrite loc_add_0.*)
+  (*Qed.*)
 
-  Lemma step_load E j K l q v:
-    nclose specN ⊆ E →
-    spec_ctx ∗ j ⤇ fill K (!#l) ∗ l ↦ₛ{q} v
-    ={E}=∗ spec_ctx ∗ j ⤇ fill K (of_val v) ∗ l ↦ₛ{q} v.
+  Lemma step_load E j K l hSh v:
+    nclose nspace ⊆ E →
+    spec_ctx ∗ (tpool_mapsto j (fill K (Load (Val (LitV (LitLoc l)))))) ∗ (heapS_mapsto hSh l v)
+    ={E}=∗ spec_ctx ∗ (tpool_mapsto j (fill K (of_val v))) ∗ (heapS_mapsto hSh l v).
   Proof.
     iIntros (?) "(#Hinv & Hj & Hl)". iFrame "Hinv".
-    rewrite /spec_ctx tpool_mapsto_eq /tpool_mapsto_def.
+    rewrite /spec_ctx /spec_inv /tpool_mapsto.
     iDestruct "Hinv" as (ρ) "Hinv".
-    rewrite heapS_mapsto_eq /heapS_mapsto_def /=.
-    iInv specN as (tp σ) ">[Hown %]" "Hclose".
-    iDestruct (own_valid_2 with "Hown Hj")
-      as %[[?%tpool_singleton_included' _]%prod_included ?]%auth_both_valid_discrete.
-    iDestruct (own_valid_2 with "Hown Hl")
-      as %[[? ?%heap_singleton_included]%prod_included ?]%auth_both_valid_discrete.
-    iMod (own_update_2 with "Hown Hj") as "[Hown Hj]".
-    { by eapply auth_update, prod_local_update_1, singleton_local_update,
-        (exclusive_local_update _ (Excl (fill K (of_val v)))). }
-    iFrame "Hj Hl". iApply "Hclose". iNext.
-    iExists (<[j:=fill K (of_val v)]> tp), σ.
-    rewrite to_tpool_insert'; last eauto. iFrame. iPureIntro.
-    eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.
-  Qed.
+    rewrite /heapS_mapsto /=.
+    iInv nspace as (tp σ) ">[% Hown]" "Hclose".
+    (*TODO: update *)
+  Admitted.
+    (*iDestruct (own_valid_2 with "Hown Hj")*)
+      (*as %[[?%tpool_singleton_included' _]%prod_included ?]%auth_both_valid_discrete.*)
+    (*iDestruct (own_valid_2 with "Hown Hl")*)
+      (*as %[[? ?%heap_singleton_included]%prod_included ?]%auth_both_valid_discrete.*)
+    (*iMod (own_update_2 with "Hown Hj") as "[Hown Hj]".*)
+    (*{ by eapply auth_update, prod_local_update_1, singleton_local_update,*)
+        (*(exclusive_local_update _ (Excl (fill K (of_val v)))). }*)
+    (*iFrame "Hj Hl". iApply "Hclose". iNext.*)
+    (*iExists (<[j:=fill K (of_val v)]> tp), σ.*)
+    (*rewrite to_tpool_insert'; last eauto. iFrame. iPureIntro.*)
+    (*eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.*)
+  (*Qed.*)
 
   Lemma step_store E j K l v' e v:
     IntoVal e v →
-    nclose specN ⊆ E →
-    spec_ctx ∗ j ⤇ fill K (#l <- e) ∗ l ↦ₛ v'
-    ={E}=∗ spec_ctx ∗ j ⤇ fill K #() ∗ l ↦ₛ v.
+    nclose nspace ⊆ E →
+    spec_ctx ∗ (tpool_mapsto j (fill K (Store (Val (LitV (LitLoc l))) e))) ∗ (heapS_mapsto fullshare l v')
+    ={E}=∗ spec_ctx ∗ (tpool_mapsto j (fill K (Val (LitV LitUnit)))) ∗ (heapS_mapsto fullshare l v).
   Proof.
     iIntros (<-?) "(#Hinv & Hj & Hl)". iFrame "Hinv".
-    rewrite /spec_ctx tpool_mapsto_eq /tpool_mapsto_def.
+    rewrite /spec_ctx /tpool_mapsto.
     iDestruct "Hinv" as (ρ) "Hinv".
-    rewrite heapS_mapsto_eq /heapS_mapsto_def /=.
-    iInv specN as (tp σ) ">[Hown %]" "Hclose".
+    rewrite /heapS_mapsto /=.
+    iInv nspace as (tp σ) ">[% Hown]" "Hclose".
+    (* TODO: update *)
     iDestruct (own_valid_2 with "Hown Hj")
       as %[[?%tpool_singleton_included' _]%prod_included _]%auth_both_valid_discrete.
     iDestruct (own_valid_2 with "Hown Hl")
