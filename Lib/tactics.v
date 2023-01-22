@@ -62,7 +62,7 @@ From Vloc Require Import core pure.
 
 (* useful to have tactics that step a specific way *)
 (* TODO: figure out why this doesn't work *)
-#[export] Ltac step_pure_r_instr ctx tactic :=
+#[local] Ltac step_pure_r_instr tactic :=
   let e' := fresh "e'" in
   let Hcond := fresh "Hcond" in
     lazymatch goal with
@@ -92,25 +92,27 @@ From Vloc Require Import core pure.
   simpl.
 
 
-#[export] Ltac step_pure_r_injrc ctx  := step_pure_r_instr ctx (fun _ => apply pure_injrc).
-#[export] Ltac step_pure_r_injlc ctx  := step_pure_r_instr ctx (fun _ => apply pure_injlc).
-#[export] Ltac step_pure_r_unop  ctx  := step_pure_r_instr ctx (fun _ => apply pure_unop).
-#[export] Ltac step_pure_r_binop ctx  := step_pure_r_instr ctx (fun e' => apply (pure_binop _ e')).
-#[export] Ltac step_pure_r_fst   ctx  := step_pure_r_instr ctx (fun _ => apply pure_fst).
-#[export] Ltac step_pure_r_snd   ctx  := step_pure_r_instr ctx (fun _ => apply pure_snd).
-#[export] Ltac step_pure_r_pairrc ctx := step_pure_r_instr ctx (fun _ => apply pure_pairc).
+#[export] Ltac SPR_injrc    := step_pure_r_instr  ltac:(fun _ => apply pure_injrc).
+#[export] Ltac SPR_injlc    := step_pure_r_instr  ltac:(fun _ => apply pure_injlc).
+#[export] Ltac SPR_unop     := step_pure_r_instr  ltac:(fun _ => apply pure_unop).
+#[export] Ltac SPR_binop    := step_pure_r_instr  ltac:(fun _ => apply pure_binop).
+#[export] Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply pure_fst).
+#[export] Ltac SPR_snd      := step_pure_r_instr  ltac:(fun _ => apply pure_snd).
+#[export] Ltac SPR_pairrc   := step_pure_r_instr  ltac:(fun _ => apply pure_pairc).
 
-#[export] Ltac step_pure_r_if_true ctx  := step_pure_r_instr ctx (fun _ => apply pure_if_true).
-#[export] Ltac step_pure_r_if_false ctx := step_pure_r_instr ctx (fun _ => apply pure_if_false).
+#[export] Ltac SPR_if_true  := step_pure_r_instr  ltac:(fun _ => apply pure_if_true).
+#[export] Ltac SPR_if_false := step_pure_r_instr  ltac:(fun _ => apply pure_if_false).
 
-#[export] Ltac step_pure_r_inr ctx := step_pure_r_instr ctx (fun _ => apply pure_case_inr).
-#[export] Ltac step_pure_r_inl ctx := step_pure_r_instr ctx (fun _ => apply pure_case_inl).
+#[export] Ltac SPR_inr      := step_pure_r_instr  ltac:(fun _ => apply pure_case_inr).
+#[export] Ltac SPR_inl      := step_pure_r_instr  ltac:(fun _ => apply pure_case_inl).
 
-#[export] Ltac step_pure_r_beta ctx := step_pure_r_instr ctx ltac:(fun _ => apply pure_beta; apply AsRecV_recv).
-#[export] Ltac step_pure_r_eqop ctx := step_pure_r_instr ctx (fun _ => apply pure_eqop).
+#[export] Ltac SPR_beta     := step_pure_r_instr  ltac:(fun _ => apply pure_beta; apply AsRecV_recv).
+#[export] Ltac SPR_eqop     := step_pure_r_instr  ltac:(fun _ => apply pure_eqop).
 
 
 (* helper stuff that isn't entirely related *)
 #[export] Ltac print_goal := match goal with
                    | |- ?p => idtac "GOAL IS: " p
                    end.
+  
+
