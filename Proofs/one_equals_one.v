@@ -50,7 +50,7 @@ Lemma one_plus_zero : semax_body Vprog Gprog f_returns_one (DECLARE _returns_one
 Proof.
   unfold fspec, refines, refines.
   start_function.
-  step_pure_r ctx.
+  SPR_binop.
   forward.
   Exists (LitV (heap_lang.LitInt 1%Z)).
   Exists (Vint (Int.repr 1)).
@@ -67,19 +67,20 @@ Lemma one_plus_zero' : semax_body Vprog Gprog f_returns_one (DECLARE _returns_on
 Proof.
   unfold fspec, refines, refines.
   start_function.
-  Fail step_pure_r ctx.
+  (*NOTE: we need to unfold here, since it can't see through the definition. *)
+  Fail SPR_binop.
+  (* I'm not sure why that changes? *)
   unfold ret_one_min_plus.
-  step_pure_r ctx.
-  step_pure_r ctx.
+  repeat SPR_binop.
   forward.
 
-  (* fun with seeing evars to see if this is nicer *)
+  (* fun with evars to see if this is nicer *)
   evar (a : ival).
   Exists a.
   evar (b : val).
   Exists b.
+  subst a b.
   entailer!.
-  - split; eauto.
-    subst b; auto.
-  - subst a; apply derives_refl.
+  - eauto.
+  - apply derives_refl.
 Qed.
