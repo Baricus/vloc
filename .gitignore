@@ -9,3 +9,5 @@
 CCode/*.v
 
 Makefile.conf
+Makefile
+_CoqProject
