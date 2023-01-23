@@ -56,12 +56,6 @@ Definition fspec :=
 
 Definition Gprog : funspecs := [fspec].
 
-#[export] Ltac SPR_if_true_t  := step_pure_r_instr  ltac:(fun e' =>
-  match goal with
-  | |- context [If (Val (LitV (?b))) ?t ?f] => 
-      subst e'; apply pure_if_true
-  end).
-
 Lemma fact_lemma : semax_body Vprog Gprog f_factorial fspec.
 Proof.
   start_function. 

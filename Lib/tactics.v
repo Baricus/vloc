@@ -61,8 +61,7 @@ From Vloc Require Import core pure.
 
 
 (* useful to have tactics that step a specific way *)
-(* TODO: figure out why this doesn't work *)
-#[export] Ltac step_pure_r_instr tactic :=
+#[local] Ltac step_pure_r_instr tactic :=
   let e' := fresh "e'" in
   let Hcond := fresh "Hcond" in
     lazymatch goal with
