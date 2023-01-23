@@ -62,7 +62,7 @@ From Vloc Require Import core pure.
 
 (* useful to have tactics that step a specific way *)
 (* TODO: figure out why this doesn't work *)
-#[local] Ltac step_pure_r_instr tactic :=
+#[export] Ltac step_pure_r_instr tactic :=
   let e' := fresh "e'" in
   let Hcond := fresh "Hcond" in
     lazymatch goal with
@@ -100,14 +100,24 @@ From Vloc Require Import core pure.
 #[export] Ltac SPR_snd      := step_pure_r_instr  ltac:(fun _ => apply pure_snd).
 #[export] Ltac SPR_pairrc   := step_pure_r_instr  ltac:(fun _ => apply pure_pairc).
 
-#[export] Ltac SPR_if_true  := step_pure_r_instr  ltac:(fun _ => apply pure_if_true).
-#[export] Ltac SPR_if_false := step_pure_r_instr  ltac:(fun _ => apply pure_if_false).
+#[export] Ltac SPR_if_true  := step_pure_r_instr  ltac:(fun e' =>
+  match goal with
+  | |- context [If (Val (LitV (LitBool ?b))) ?t ?f] => 
+      subst e'; apply pure_if_true
+  end).
+#[export] Ltac SPR_if_false  := step_pure_r_instr  ltac:(fun e' =>
+  match goal with
+  | |- context [If (Val (LitV (LitBool ?b))) ?t ?f] => 
+      subst e'; apply pure_if_false
+  end).
 
 #[export] Ltac SPR_inr      := step_pure_r_instr  ltac:(fun _ => apply pure_case_inr).
 #[export] Ltac SPR_inl      := step_pure_r_instr  ltac:(fun _ => apply pure_case_inl).
 
 #[export] Ltac SPR_beta     := step_pure_r_instr  ltac:(fun _ => apply pure_beta; apply AsRecV_recv).
 #[export] Ltac SPR_eqop     := step_pure_r_instr  ltac:(fun _ => apply pure_eqop).
+
+#[export] Ltac SPR_recc     := step_pure_r_instr  ltac:(fun _ => apply (pure_recc _)).
 
 
 (* helper stuff that isn't entirely related *)
