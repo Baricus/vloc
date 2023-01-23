@@ -38,7 +38,7 @@ From Vloc Require Import core pure.
     | |- context [ bool_decide ?cond ] => 
         destruct (bool_decide cond) eqn:Hcond;
         [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
-        try lia;
+        try contradiction; try lia; 
         clear Hcond
     (* otherwise, try to step to the next instruction *)
     | |- context[refines_right ?ctx ?expr] => 
@@ -69,7 +69,7 @@ From Vloc Require Import core pure.
     | |- context [ bool_decide ?cond ] => 
         destruct (bool_decide cond) eqn:Hcond;
         [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
-        try lia;
+        try contradiction; try lia; 
         clear Hcond
     (* otherwise, try to step to the next instruction *)
     | |- context[refines_right ?ctx ?expr] => 
