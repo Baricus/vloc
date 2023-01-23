@@ -56,35 +56,30 @@ Definition fspec :=
 
 Definition Gprog : funspecs := [fspec].
 
+#[export] Ltac SPR_if_true_t  := step_pure_r_instr  ltac:(fun e' =>
+  match goal with
+  | |- context [If (Val (LitV (?b))) ?t ?f] => 
+      subst e'; apply pure_if_true
+  end).
+
 Lemma fact_lemma : semax_body Vprog Gprog f_factorial fspec.
 Proof.
   start_function. 
+  (* we use an evar here to not have to type out the iris expression *)
   evar (e : iexp).
   forward_if (
     PROP((Int.unsigned n >= 1)%Z) 
     LOCAL(temp _n (Vint n)) 
     SEP(refines_right ctx e)).
-       (*(BinOp RemOp*)
-          (*(BinOp MultOp (Val (LitV (LitInt (Int.unsigned n))))*)
-             (*(App*)
-                (*(Val*)
-                   (*(RecV "factI" "n"*)
-                      (*(If (BinOp LtOp (Var "n") (Val (LitV (LitInt 1))))*)
-                         (*(Val (LitV (LitInt 1)))*)
-                         (*(BinOp RemOp*)
-                            (*(BinOp MultOp (Var "n")*)
-                               (*(App (Var "factI")*)
-                                  (*(BinOp MinusOp (Var "n")*)
-                                     (*(Val (LitV (LitInt 1))))))*)
-                            (*(Val (LitV (LitInt Int.modulus)))))))*)
-                (*(BinOp MinusOp (Val (LitV (LitInt (Int.unsigned n))))*)
-                   (*(Val (LitV (LitInt 1))))))*)
-          (*(Val (LitV (LitInt Int.modulus)))))*)
-  (*).*)
+
   (* n is zero or less *)
   {
     (* step hl to right form *)
-    do 4 step_pure_r ctx.
+    SPR_beta.
+    SPR_binop.
+    (* NOTE: how to put this into the tactic? *)
+    destruct (bool_decide_reflect (Int.unsigned n < 1)%Z); try contradiction.
+    SPR_if_true.
     forward.
     simpl.
     replace (Z.pos (1 * 1)) with (Z.pos 1) by lia.
@@ -94,9 +89,15 @@ Proof.
     apply nat_relate_n.
     lia.
   }
+  (* n >= 1 *)
   {
     (* step hl through 1 cycle *)
-    do 4 step_pure_r ctx.
+    SPR_beta.
+    SPR_binop.
+    destruct (bool_decide_reflect (Int.unsigned n < 1)%Z); try contradiction.
+    SPR_if_false.
+    (* unfold recursive call *)
+    (*SPR_beta.*)
     forward.
     unfold iris.factI.
     unfold e.
@@ -105,7 +106,7 @@ Proof.
   }
   subst e.
   Intros.
-  step_pure_r ctx.
+  SPR_binop.
   evar (e : list ectx_item).
   forward_call (gv, add_to_ctx ctx e, (Int.sub n Int.one)); try lia.
   {
@@ -145,7 +146,7 @@ Proof.
   unfold nat_relate in H0.
   destruct H0 as [rn [HrnPos [Hvst Hiris]]]; subst.
   (* step both programs to completion *)
-  do 2 step_pure_r ctx.
+  do 2 SPR_binop.
   forward.
   (* prove equivalence *)
   Exists (LitV (LitInt ((Int.unsigned n * rn) `rem` Int.modulus))).
