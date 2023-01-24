@@ -1,6 +1,7 @@
 Require Import Vloc.Lib.core.
 Require Import Vloc.Lib.pure.
 
+(* NOTE: I feel like this should exist somewhere? *)
 Lemma share_split_nonempty sh:
   sh ≠ emptyshare -> fst (Share.split sh) ≠ emptyshare /\ snd (Share.split sh) ≠ emptyshare.
 Proof.
@@ -8,7 +9,7 @@ Proof.
   remember ((Share.split sh).1) as shl.
   remember ((Share.split sh).2) as shr.
     split.
-    (* weirdly, connecting these via ; does not work *)
+    (* weirdly, connecting these via ; instead of 1,2: does not work *)
     1,2: intros Hfalse;
       specialize (Share.split_nontrivial) with shl shr sh; intros Hsnontriv;
       subst;
@@ -25,8 +26,17 @@ Context `{ref_ctx: refines_ctx}.
   Lemma tpool_singleton_included (tp : list iexp) (j : nat) (e : iexp) :
     join_sub {[j := Some e]} (to_tpool tp) → tp !! j = Some e.
   Proof.
-    (*TODO*)
-  Admitted.
+    unfold join_sub.
+    intros [g Hjoin].
+    specialize (Hjoin j).
+    rewrite lookup_singleton in Hjoin.
+    inv Hjoin; auto.
+    destruct a3; inv H2; auto.
+    specialize (tpool_lookup_Some tp j i); intros Hbridge.    
+    apply eq_sym in H1.
+    apply Hbridge in H1.
+    contradiction. (* NOTE: what did I just prove...? *)
+  Qed.
     (*move=> /singleton_included_l [ex [/leibniz_equiv_iff]].*)
     (*rewrite tpool_lookup fmap_Some=> [[e' [-> ->]] /Excl_included ?]. by f_equal.*)
   (*Qed.*)
