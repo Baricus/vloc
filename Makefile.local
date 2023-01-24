@@ -5,4 +5,6 @@ CCode/%.v: CCode/%.c
 
 # since we have double colon rules, we can extend the original file!
 clean::
-	@rm -f CCode/*.v
+	@rm -f CCode/*.v CCode/*.glob CCode/*.vo CCode/*.vok CCode/*.vos
+
+
