@@ -71,7 +71,11 @@ From Vloc Require Import core pure.
         [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
         try contradiction; try lia; 
         clear Hcond
-    (* otherwise, try to step to the next instruction *)
+    (* anything else we carry on *)
+    | |- ?anything => idtac (* do nothing tactic *)
+    end;
+    (* try to step to the next instruction *)
+    lazymatch goal with
     | |- context[refines_right ?ctx ?expr] => 
         reshape_expr expr ltac:(fun K e => 
           replace expr with (fill K e) by (by rewrite ? fill_app);
@@ -99,6 +103,7 @@ From Vloc Require Import core pure.
 #[export] Ltac SPR_snd      := step_pure_r_instr  ltac:(fun _ => apply pure_snd).
 #[export] Ltac SPR_pairrc   := step_pure_r_instr  ltac:(fun _ => apply pure_pairc).
 
+(* NOTE: If requires that we know the branch we're going down in order to work *)
 #[export] Ltac SPR_if_true  := step_pure_r_instr  ltac:(fun e' =>
   match goal with
   | |- context [If (Val (LitV (LitBool ?b))) ?t ?f] => 

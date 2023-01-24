@@ -71,8 +71,7 @@ Proof.
     (* step hl to right form *)
     SPR_beta.
     SPR_binop.
-    (* NOTE: how to put this into the tactic? *)
-    destruct (bool_decide_reflect (Int.unsigned n < 1)%Z); try contradiction.
+    (*NOTE: this automatically *tries* to solve bool_decide for you when it can *)
     SPR_if_true.
     forward.
     simpl.
@@ -88,7 +87,6 @@ Proof.
     (* step hl through 1 cycle *)
     SPR_beta.
     SPR_binop.
-    destruct (bool_decide_reflect (Int.unsigned n < 1)%Z); try contradiction.
     SPR_if_false.
     (* unfold recursive call *)
     (*SPR_beta.*)
@@ -96,8 +94,10 @@ Proof.
     unfold iris.factI.
     unfold e.
     entailer!.
+    (* we have the expression we want in order to use forward call, so we stop here *)
     apply derives_refl.
   }
+  (* actually show that the case works *)
   subst e.
   Intros.
   SPR_binop.
