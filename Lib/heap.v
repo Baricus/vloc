@@ -31,11 +31,8 @@ Context `{ref_ctx: refines_ctx}.
     specialize (Hjoin j).
     rewrite lookup_singleton in Hjoin.
     inv Hjoin; auto.
-    destruct a3; inv H2; auto.
-    specialize (tpool_lookup_Some tp j i); intros Hbridge.    
-    apply eq_sym in H1.
-    apply Hbridge in H1.
-    contradiction. (* NOTE: what did I just prove...? *)
+    inv H2; auto.
+    contradiction.
   Qed.
     (*move=> /singleton_included_l [ex [/leibniz_equiv_iff]].*)
     (*rewrite tpool_lookup fmap_Some=> [[e' [-> ->]] /Excl_included ?]. by f_equal.*)
@@ -71,6 +68,7 @@ Context `{ref_ctx: refines_ctx}.
     (* modification to use VST's update semantics rather than iris *)
     iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as "%Hghost_join".
     iCombine "Hj Hown" as "Hown".
+
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
     (*NOTE: updating heap! *)
     iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _
@@ -121,7 +119,6 @@ Context `{ref_ctx: refines_ctx}.
         reflexivity.
     }
     (*NOTE: We may actually need this *)
-    clear Hghost_join.
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
     (*iDestruct (own_valid_2 with "Hown Hj")*)
       (*as %[[?%tpool_singleton_included' _]%prod_included ?]%auth_both_valid_discrete.*)
@@ -134,14 +131,15 @@ Context `{ref_ctx: refines_ctx}.
       (*by apply lookup_to_heap_None. }*)
     iExists l. 
     rewrite /UsrGhost /heapS_mapsto.
+    destruct (Share.split sh) as [shl shr] eqn:Hshplit.
     (* Split Hj into two pieces, one for the heap and one for the map *)
-    remember ((Share.split sh).1) as shl.
-    remember ((Share.split sh).2) as shr.
+    (*remember ((Share.split sh).1) as shl.*)
+    (*remember ((Share.split sh).2) as shr.*)
     (* prove that the shares can't be empty; we need this fact in multiple places *)
     specialize (share_split_nonempty sh shNE).
+    rewrite Hshplit.
+    simpl.
     intros HshrsNE; destruct HshrsNE as [HshlNE HshrNE].
-    rewrite <- Heqshl in HshlNE.
-    rewrite <- Heqshr in HshrNE.
     (* now we know the shares are not empty everywhere *)
     iDestruct (ghost_part_join (P:=spec_ghost) shl shr sh
       ({[j := Some (fill K (Val (LitV (LitLoc l))))]}, to_heap gmap_empty)
@@ -151,9 +149,7 @@ Context `{ref_ctx: refines_ctx}.
     ) as "[_ Himpl ]"; eauto.
     { 
       apply split_join.
-      subst; simpl.
-      (* why is this so hard to prove; you'd think auto would handle it *)
-      apply surjective_pairing.
+      auto.
     }
     (* prove that the update joins properly *)
     { 
@@ -180,13 +176,28 @@ Context `{ref_ctx: refines_ctx}.
     iApply "Hclose". iNext.
     iExists (<[j:=fill K (Val (LitV (LitLoc l)))]> tp), (state_upd_heap <[l:=Some v]> σ).
 
-    rewrite to_heap_insert to_tpool_insert'; last eauto. iFrame. iPureIntro.
-  Admitted.
+    rewrite to_heap_insert. 
+    eassert (to_tpool tp !! j = _).
+    { 
+      if_tac in Hghost_join. 
+      - inv Hghost_join.
+        rewrite lookup_singleton.
+        auto.
+      - destruct Hghost_join as [g Hghost_join].
+        erewrite tpool_singleton_included'; auto.
+        eexists.
+        inv Hghost_join.
+        eauto.
+    }
+    rewrite to_tpool_insert'; auto. 
+     
+    iFrame. iSplit; auto. iPureIntro.
+  (*Admitted.*)
     (*TODO: figure out why rtc_r fails *)
-    (*eapply rtc_r, step_insert_no_fork; eauto.*)
-    (*rewrite -state_init_heap_singleton. eapply AllocNS; first by lia.*)
-    (*intros. assert (i = 0) as -> by lia. by rewrite loc_add_0.*)
-  (*Qed.*)
+    eapply rtc_r, step_insert_no_fork; eauto.
+    rewrite -state_init_heap_singleton. eapply AllocNS; first by lia.
+    intros. assert (i = 0) as -> by lia. by rewrite loc_add_0.
+  Qed.
 
   Lemma step_load E j K l hSh v:
     nclose nspace ⊆ E →
