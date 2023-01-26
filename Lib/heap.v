@@ -19,7 +19,7 @@ Proof.
 Qed.
 
 Section heap.
-  
+
 Context `{ref_ctx: refines_ctx}.
 (* Some helper lemmas *)
 (* NOTE: what is the equivalent of cmra.included? *)
@@ -28,6 +28,10 @@ Context `{ref_ctx: refines_ctx}.
   Proof.
     unfold join_sub.
     intros [g Hjoin].
+    Set Printing Implicit.
+    unfold tpool_ghost in *.
+    (* We cannot reach such heights of perfection.  It was not intended for us *)
+    (*apply (join_ord (PCM_order := gmap_order (A_order := discrete_order))) in Hjoin.*)
     specialize (Hjoin j).
     rewrite lookup_singleton in Hjoin.
     inv Hjoin; auto.
@@ -40,6 +44,9 @@ Context `{ref_ctx: refines_ctx}.
   Lemma tpool_singleton_included' tp j e :
     join_sub {[j := Some e]} (to_tpool tp) → to_tpool tp !! j = (Some (Some e)).
   Proof. rewrite tpool_lookup. by move=> /tpool_singleton_included=> ->. Qed.
+
+  (*Lemma tpool_ref_sub_singleton :*)
+
 
 (* Does this exist??? NOTE *)
 (*Instance eq_dec_loc : EqDec loc.*)
@@ -202,13 +209,34 @@ Context `{ref_ctx: refines_ctx}.
   Lemma step_load E j K l hSh v:
     nclose nspace ⊆ E →
     spec_ctx ∗ (tpool_mapsto j (fill K (Load (Val (LitV (LitLoc l)))))) ∗ (heapS_mapsto hSh l v)
-    ={E}=∗ spec_ctx ∗ (tpool_mapsto j (fill K (of_val v))) ∗ (heapS_mapsto hSh l v).
+    ={E}=∗ (spec_ctx ∗ (tpool_mapsto j (fill K (of_val v))) ∗ (heapS_mapsto hSh l v)).
   Proof.
-    iIntros (?) "(#Hinv & Hj & Hl)". iFrame "Hinv".
+    iIntros (?) "(#Hinv & [[%sj [Hsjne Hj]] [%sl [Hslne Hl]]])". iFrame "Hinv".
+    iDestruct "Hsjne" as %Hsjne.
+    iDestruct "Hslne" as %Hslne.
     rewrite /spec_ctx /spec_inv /tpool_mapsto.
     iDestruct "Hinv" as (ρ) "Hinv".
     rewrite /heapS_mapsto /=.
     iInv nspace as (tp σ) ">[% Hown]" "Hclose".
+    rewrite /UsrGhost.
+    (* before we do any updates, we want to pull out some facts *)
+    iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as %Hjoin_own_j.
+    destruct eq_dec.
+    (* We have two updates here, one for the heap and one for the thread afterwards *)
+    (* first we'll update the heap *)
+    iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hl]") as "%Hjoin_own_l".
+    iCombine "Hl Hown" as "Hown".
+    iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
+    iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _
+      (
+        _,
+        _
+      )      
+    ) with "Hown") as ">Hown".
+    {
+      intros g Hjoin.
+      inv Hjoin.
+    }
     (*TODO: update *)
   Admitted.
     (*iDestruct (own_valid_2 with "Hown Hj")*)
