@@ -75,33 +75,50 @@ Context `{ref_ctx: refines_ctx}.
   Qed.
 
 
-  Lemma heap_ref_sub_lookup gName (sh : Share.t) (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ (j : loc):
-    sh ≠ Share.bot →
+  (* Lemmas to show that we can find things in the full maps as needed *)
+  Lemma heap_ref_sub_lookup gName (sh : Share.t) (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ (l : loc):
     ghost_part (P:=spec_ghost) sh (tp', σ') gName 
     * ghost_reference (P:=spec_ghost) (to_tpool tp, to_heap (heap σ)) gName 
-     |-- (!! (forall (v : option heap_lang.val),  forall (vsh' : Share.t), 
-      (σ' !! j = Some (vsh', v)) -> (exists vsh, (to_heap (heap σ)) !! j = Some ((vsh, v))))).
+     |-- (!! (forall v,  forall (vsh' : Share.t), 
+      (σ' !! l = Some (Some (vsh', v))) -> (exists vsh, (to_heap (heap σ)) !! l = Some (Some (vsh, v))))).
   Proof.
-    iIntros (Hne) "[Part Ref]".
+    iIntros "[Part Ref]".
     iDestruct (ref_sub (P := spec_ghost) with "[$Part $Ref]") as "%Hjoin".
     iPureIntro.
-    intros v.
+    intros v vsh'.
     intros Hsome.
     if_tac in Hjoin.
     (* full share means they agree by default *)
-    { inv Hjoin; subst; auto. }
+    { exists vsh'; inv Hjoin; subst; auto. }
+    (* if we don't have full share, we have to show they agree *)
     inv Hjoin; inv H0.
-    specialize (H2 j); inv H2.
+    specialize (H2 l); inv H2.
     (* same set of cases, essentially *)
-    { rewrite Hsome in H3; inv H3. }
-    { rewrite Hsome in H5; auto. }
-    inv H5.
-    
-      
+    { rewrite Hsome in H3; inv H3. } (* None != Some *)
+    { rewrite Hsome in H5; exists vsh'; auto. } (* other joined piece is None, so equal *)
 
-
-
-
+    (* Both x and our ghost_part are pieces and join *)
+    (* here we prove that no matter what share we have or what x is, we get the same value v in the heap *)
+    destruct a1; [|rewrite Hsome in H0; inv H0]. (* Hone != Some but different *)
+    assert (p = (vsh', v)) by (rewrite Hsome in H0; inv H0; auto); subst. (* we already know what p is *)
+    (* What values can the overall heap store at l? *)
+    destruct a3.
+    - destruct p.
+      exists s.
+      apply eq_sym in H4; rewrite H4.
+      destruct a2.
+      + destruct p.
+        inv H5; destruct H6 as [Hs0NE [Hshjoin Hvjoin]].
+        inv Hvjoin.
+        reflexivity.
+      + inv H5.
+        reflexivity.
+    (* in this case, we show that we can't somehow get None from Some, but again *)
+    - destruct a2.
+      + destruct p.
+        inv H5.
+      + inv H5.
+  Qed.
 
 (* Does this exist??? NOTE *)
 (*Instance eq_dec_loc : EqDec loc.*)
