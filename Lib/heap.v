@@ -20,6 +20,7 @@ Qed.
 
 Section heap.
 
+
 Context `{ref_ctx: refines_ctx}.
 (* Some helper lemmas *)
 (* NOTE: what is the equivalent of cmra.included? *)
@@ -45,7 +46,61 @@ Context `{ref_ctx: refines_ctx}.
     join_sub {[j := Some e]} (to_tpool tp) → to_tpool tp !! j = (Some (Some e)).
   Proof. rewrite tpool_lookup. by move=> /tpool_singleton_included=> ->. Qed.
 
-  (*Lemma tpool_ref_sub_singleton :*)
+  Lemma tpool_ref_sub_lookup gName sh (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ j:
+    sh ≠ Share.bot →
+    ghost_part (P:=spec_ghost) sh (tp', σ') gName 
+    * ghost_reference (P:=spec_ghost) (to_tpool tp, to_heap (heap σ)) gName 
+     |-- (!! (forall v, (tp' !! j = Some (Some v) -> (to_tpool tp) !! j = Some (Some v)))).
+  Proof.
+    iIntros (Hne) "[Part Ref]".
+    iDestruct (ref_sub (P := spec_ghost) with "[$Part $Ref]") as "%Hjoin".
+    iPureIntro.
+    intros v.
+    if_tac in Hjoin.
+    - inversion Hjoin; subst; auto.
+    - intros Hsome.
+      inv Hjoin. 
+      inv H0.
+      specialize (H1 j).
+      inv H1.
+      (* impossible case *)
+      { rewrite Hsome in H3; inv H3. }
+      (* actual case *)
+      rewrite Hsome in H5; auto.
+      (* show that we can't have any other possibility *)
+      inv H5.
+      + rewrite Hsome in H0; inv H0.
+      + rewrite Hsome in H0; rewrite H0 in H4; auto.
+      + inv H1.
+  Qed.
+
+
+  Lemma heap_ref_sub_lookup gName (sh : Share.t) (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ (j : loc):
+    sh ≠ Share.bot →
+    ghost_part (P:=spec_ghost) sh (tp', σ') gName 
+    * ghost_reference (P:=spec_ghost) (to_tpool tp, to_heap (heap σ)) gName 
+     |-- (!! (forall (v : option heap_lang.val),  forall (vsh' : Share.t), 
+      (σ' !! j = Some (vsh', v)) -> (exists vsh, (to_heap (heap σ)) !! j = Some ((vsh, v))))).
+  Proof.
+    iIntros (Hne) "[Part Ref]".
+    iDestruct (ref_sub (P := spec_ghost) with "[$Part $Ref]") as "%Hjoin".
+    iPureIntro.
+    intros v.
+    intros Hsome.
+    if_tac in Hjoin.
+    (* full share means they agree by default *)
+    { inv Hjoin; subst; auto. }
+    inv Hjoin; inv H0.
+    specialize (H2 j); inv H2.
+    (* same set of cases, essentially *)
+    { rewrite Hsome in H3; inv H3. }
+    { rewrite Hsome in H5; auto. }
+    inv H5.
+    
+      
+
+
+
 
 
 (* Does this exist??? NOTE *)
