@@ -46,16 +46,15 @@ Context `{ref_ctx: refines_ctx}.
     join_sub {[j := Some e]} (to_tpool tp) → to_tpool tp !! j = (Some (Some e)).
   Proof. rewrite tpool_lookup. by move=> /tpool_singleton_included=> ->. Qed.
 
-  Lemma tpool_ref_sub_lookup gName sh (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ j:
-    sh ≠ Share.bot →
+  (* If any part of the tpool has a thread in it, the overall thread pool has that in it *)
+  Lemma tpool_ref_sub_lookup j v sh gName (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ:
     ghost_part (P:=spec_ghost) sh (tp', σ') gName 
     * ghost_reference (P:=spec_ghost) (to_tpool tp, to_heap (heap σ)) gName 
-     |-- (!! (forall v, (tp' !! j = Some (Some v) -> (to_tpool tp) !! j = Some (Some v)))).
+     |-- (!! ((tp' !! j = Some (Some v) -> (to_tpool tp) !! j = Some (Some v)))).
   Proof.
-    iIntros (Hne) "[Part Ref]".
+    iIntros  "[Part Ref]".
     iDestruct (ref_sub (P := spec_ghost) with "[$Part $Ref]") as "%Hjoin".
     iPureIntro.
-    intros v.
     if_tac in Hjoin.
     - inversion Hjoin; subst; auto.
     - intros Hsome.
@@ -75,17 +74,16 @@ Context `{ref_ctx: refines_ctx}.
   Qed.
 
 
-  (* Lemmas to show that we can find things in the full maps as needed *)
-  Lemma heap_ref_sub_lookup gName (sh : Share.t) (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ (l : loc):
+  (* If a part of the heap has a value in it, the rest of the heap has to as well *)
+  Lemma heap_ref_sub_lookup (l : loc) v vsh' gName (sh : Share.t) (tp' : @G tpool_ghost) (σ' : @G heap_ghost) tp σ:
     ghost_part (P:=spec_ghost) sh (tp', σ') gName 
     * ghost_reference (P:=spec_ghost) (to_tpool tp, to_heap (heap σ)) gName 
-     |-- (!! (forall v,  forall (vsh' : Share.t), 
+     |-- (!! (
       (σ' !! l = Some (Some (vsh', v))) -> (exists vsh, (to_heap (heap σ)) !! l = Some (Some (vsh, v))))).
   Proof.
     iIntros "[Part Ref]".
     iDestruct (ref_sub (P := spec_ghost) with "[$Part $Ref]") as "%Hjoin".
     iPureIntro.
-    intros v vsh'.
     intros Hsome.
     if_tac in Hjoin.
     (* full share means they agree by default *)
@@ -120,10 +118,7 @@ Context `{ref_ctx: refines_ctx}.
       + inv H5.
   Qed.
 
-(* Does this exist??? NOTE *)
-(*Instance eq_dec_loc : EqDec loc.*)
-(*Proof.*)
-(*Admitted.*)
+
 (* taken and modified from theories/logic/spec_rules.v *)
 (* Questions:
     - Is (pos_to_Qp 1) equivalent to top?
@@ -145,7 +140,13 @@ Context `{ref_ctx: refines_ctx}.
     destruct (exist_fresh (dom (heap σ))) as [l Hl%not_elem_of_dom].
 
     (* modification to use VST's update semantics rather than iris *)
-    iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as "%Hghost_join".
+
+    (* we need to know later that j is in the thread pool, 
+       so we prove it now while we have Hj and Hown around *)
+    iDestruct (tpool_ref_sub_lookup j with "[$Hj $Hown]") as "%HhasJ"; 
+      rewrite lookup_singleton in HhasJ;
+      specialize (HhasJ eq_refl).
+
     iCombine "Hj Hown" as "Hown".
 
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
@@ -255,24 +256,9 @@ Context `{ref_ctx: refines_ctx}.
     iApply "Hclose". iNext.
     iExists (<[j:=fill K (Val (LitV (LitLoc l)))]> tp), (state_upd_heap <[l:=Some v]> σ).
 
-    rewrite to_heap_insert. 
-    eassert (to_tpool tp !! j = _).
-    { 
-      if_tac in Hghost_join. 
-      - inv Hghost_join.
-        rewrite lookup_singleton.
-        auto.
-      - destruct Hghost_join as [g Hghost_join].
-        erewrite tpool_singleton_included'; auto.
-        eexists.
-        inv Hghost_join.
-        eauto.
-    }
-    rewrite to_tpool_insert'; auto. 
-     
-    iFrame. iSplit; auto. iPureIntro.
-  (*Admitted.*)
-    (*TODO: figure out why rtc_r fails *)
+    (* we need the HhasJ here for to_tpool_insert' *)
+    rewrite to_heap_insert to_tpool_insert'; last auto. 
+    iFrame; iSplit; auto. iPureIntro.
     eapply rtc_r, step_insert_no_fork; eauto.
     rewrite -state_init_heap_singleton. eapply AllocNS; first by lia.
     intros. assert (i = 0) as -> by lia. by rewrite loc_add_0.
@@ -291,9 +277,15 @@ Context `{ref_ctx: refines_ctx}.
     rewrite /heapS_mapsto /=.
     iInv nspace as (tp σ) ">[% Hown]" "Hclose".
     rewrite /UsrGhost.
-    (* before we do any updates, we want to pull out some facts *)
-    iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hj]") as %Hjoin_own_j.
-    destruct eq_dec.
+    (* before we do any updates, we want to pull out that both things are in the main heap *)
+    iDestruct (tpool_ref_sub_lookup j with "[$Hown $Hj]") as "%HtpJ"; 
+      rewrite lookup_singleton in HtpJ;
+      specialize (HtpJ eq_refl).
+    iDestruct (heap_ref_sub_lookup l with "[$Hown $Hl]") as "%Hheapl";
+      rewrite lookup_singleton in Hheapl;
+      specialize (Hheapl eq_refl);
+      destruct Hheapl as [valueShare Hheapl].
+
     (* We have two updates here, one for the heap and one for the thread afterwards *)
     (* first we'll update the heap *)
     iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hl]") as "%Hjoin_own_l".
