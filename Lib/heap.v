@@ -286,21 +286,80 @@ Context `{ref_ctx: refines_ctx}.
       specialize (Hheapl eq_refl);
       destruct Hheapl as [valueShare Hheapl].
 
-    (* We have two updates here, one for the heap and one for the thread afterwards *)
-    (* first we'll update the heap *)
-    iDestruct (ref_sub (P:= spec_ghost) with "[$Hown $Hl]") as "%Hjoin_own_l".
-    iCombine "Hl Hown" as "Hown".
+    (* Now we can update the load to the value *)
+    iCombine "Hj Hown" as "Hown".
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
-    iDestruct ((part_ref_update (P:= spec_ghost) _ _ _ _
-      (
-        _,
-        _
-      )      
-    ) with "Hown") as ">Hown".
+    iDestruct (part_ref_update (P:= spec_ghost) _ _ _ _
+    ({[j := Some (fill K (Val v))]}, to_heap gmap_empty)
+     (<[j := Some (fill K (Val v)) ]> (to_tpool tp), to_heap (heap σ)) with "Hown") as ">Hown".
     {
       intros g Hjoin.
-      inv Hjoin.
+      split.
+      (* the new values can join *)
+      - inv Hjoin; simpl in H1, H2.
+        pose proof (H1 j) as Hj.
+        rewrite lookup_singleton HtpJ in Hj.
+        inv Hj; subst.
+        (* g does not cointain j *)
+        { 
+          split; auto.  (* heap doesn't change *)
+          intros thread.
+          destruct (eq_dec thread j); subst.
+          - simpl.
+            rewrite lookup_singleton.
+            rewrite lookup_insert.
+            rewrite <- H5.
+            apply lower_None2.
+          - simpl.
+            rewrite lookup_singleton_ne; auto.
+            rewrite lookup_insert_ne; auto.
+            pose proof (H1 thread) as Htd.
+            inv Htd; first apply lower_None1.
+            {
+              rewrite lookup_singleton_ne; auto.
+              apply lower_None1.
+            }
+            {
+              rewrite lookup_singleton_ne in H3.
+              inv H3.
+              auto.
+            }
+        }
+        (* g contains j *)
+        {
+          split; auto.
+          intros thread.
+          destruct (decide (thread = j)); subst.
+          - simpl.
+            rewrite lookup_singleton.
+            rewrite lookup_insert.
+            inv H6.
+            { rewrite <- H4; apply lower_Some; apply lower_None2. }
+            { inv H8. }
+          - rewrite lookup_singleton_ne; auto.
+            rewrite lookup_insert_ne; auto.
+            pose proof (H1 thread) as Htd.
+            inv Htd. 
+            { rewrite H8; apply lower_None1. }
+            { 
+              rewrite lookup_singleton_ne in H8; auto.
+              (* It didn't want to let me rewrite None = _ equations so we do this *)
+              rewrite H8 in H7.
+              rewrite H7.
+              apply lower_None1.
+            }
+            inv H8.
+            { rewrite H5 in H7; rewrite H7; apply lower_None1. }
+            { rewrite lookup_singleton_ne in H3; auto; inv H3. }
+            inv H9.
+        }
+      (* show that if this is the only piece they're equal *)
+      - intros Hsub.
+        inv Hsub; subst.
+        rewrite insert_singleton.
+        reflexivity.
     }
+
     (*TODO: update *)
   Admitted.
     (*iDestruct (own_valid_2 with "Hown Hj")*)
