@@ -198,7 +198,6 @@ Context `{ref_ctx: refines_ctx}.
         rewrite insert_empty.
         reflexivity.
     }
-    (*NOTE: We may actually need this *)
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
     (*iDestruct (own_valid_2 with "Hown Hj")*)
       (*as %[[?%tpool_singleton_included' _]%prod_included ?]%auth_both_valid_discrete.*)
@@ -359,21 +358,35 @@ Context `{ref_ctx: refines_ctx}.
         rewrite insert_singleton.
         reflexivity.
     }
-
-    (*TODO: update *)
-  Admitted.
-    (*iDestruct (own_valid_2 with "Hown Hj")*)
-      (*as %[[?%tpool_singleton_included' _]%prod_included ?]%auth_both_valid_discrete.*)
-    (*iDestruct (own_valid_2 with "Hown Hl")*)
-      (*as %[[? ?%heap_singleton_included]%prod_included ?]%auth_both_valid_discrete.*)
-    (*iMod (own_update_2 with "Hown Hj") as "[Hown Hj]".*)
-    (*{ by eapply auth_update, prod_local_update_1, singleton_local_update,*)
-        (*(exclusive_local_update _ (Excl (fill K (of_val v)))). }*)
-    (*iFrame "Hj Hl". iApply "Hclose". iNext.*)
-    (*iExists (<[j:=fill K (of_val v)]> tp), σ.*)
-    (*rewrite to_tpool_insert'; last eauto. iFrame. iPureIntro.*)
-    (*eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.*)
-  (*Qed.*)
+    iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
+    (* NOTE: why do I need to keep doing this? *)
+    iApply fupd_frame_l; iSplitL "Hj".
+    { iExists sj; iFrame; iPureIntro; auto. }
+    iExists sl. 
+    iApply fupd_frame_l; iSplitR; first (iPureIntro; auto).
+    iFrame.
+    iApply "Hclose".
+    iNext.
+    iExists (<[j:=fill K (of_val v)]> tp), σ.
+    rewrite to_tpool_insert'; last eauto. iFrame. iPureIntro.
+    split; auto.
+    eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.
+    (* show this l actually does point to v in the heap *)
+    (* NOTE: is there an easier way to do this? *)
+    rewrite /to_heap in Hheapl.
+    rewrite lookup_fmap in Hheapl.
+    destruct (heap σ !! l) eqn:Hpos; rewrite Hpos in Hheapl; simpl.
+    { 
+      rewrite fmap_Some in Hheapl. 
+      destruct Hheapl as [v' [Heq Hheapl]].
+      inv Hheapl.
+      auto.
+    }
+    {
+      simpl in Hheapl.
+      inv Hheapl.
+    }
+  Qed.
 
   Lemma step_store E j K l v' e v:
     IntoVal e v →
