@@ -394,31 +394,160 @@ Context `{ref_ctx: refines_ctx}.
     spec_ctx ∗ (tpool_mapsto j (fill K (Store (Val (LitV (LitLoc l))) e))) ∗ (heapS_mapsto fullshare l v')
     ={E}=∗ spec_ctx ∗ (tpool_mapsto j (fill K (Val (LitV LitUnit)))) ∗ (heapS_mapsto fullshare l v).
   Proof.
-    iIntros (<-?) "(#Hinv & Hj & Hl)". iFrame "Hinv".
+    iIntros (<-?) "(#Hinv & [[%sj [Hsjne Hj]] [%sl [Hslne Hl]]])". iFrame "Hinv".
+    iDestruct "Hsjne" as %Hsjne.
+    iDestruct "Hslne" as %Hslne.
     rewrite /spec_ctx /tpool_mapsto.
     iDestruct "Hinv" as (ρ) "Hinv".
-    rewrite /heapS_mapsto /=.
     iInv nspace as (tp σ) ">[% Hown]" "Hclose".
-    (* TODO: update *)
-  Admitted.
-    (*iDestruct (own_valid_2 with "Hown Hj")*)
-      (*as %[[?%tpool_singleton_included' _]%prod_included _]%auth_both_valid_discrete.*)
-    (*iDestruct (own_valid_2 with "Hown Hl")*)
-      (*as %[[_ Hl%heap_singleton_included]%prod_included _]%auth_both_valid_discrete.*)
-    (*iMod (own_update_2 with "Hown Hj") as "[Hown Hj]".*)
-    (*{ by eapply auth_update, prod_local_update_1, singleton_local_update,*)
-        (*(exclusive_local_update _ (Excl (fill K #()))). }*)
-    (*iMod (own_update_2 with "Hown Hl") as "[Hown Hl]".*)
-    (*{ eapply auth_update, prod_local_update_2.*)
-      (*apply: singleton_local_update.*)
-      (*{ by rewrite /to_heap lookup_fmap Hl. }*)
-      (*apply: (exclusive_local_update _*)
-        (*(1%Qp, to_agree (Some v : leibnizO (option val)))).*)
-      (*apply: pair_exclusive_l. done. }*)
-    (*iFrame "Hj Hl". iApply "Hclose". iNext.*)
-    (*iExists (<[j:=fill K #()]> tp), (state_upd_heap <[l:=Some v]> σ).*)
-    (*rewrite to_heap_insert to_tpool_insert'; last eauto. iFrame. iPureIntro.*)
-    (*eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.*)
-  (*Qed.*)
+    rewrite /heapS_mapsto /=.
+
+    (* we probably need the fact that the things in the heap exist *)
+    iDestruct (tpool_ref_sub_lookup j with "[$Hown $Hj]") as "%HtpJ";
+      rewrite lookup_singleton in HtpJ;
+      specialize (HtpJ eq_refl).
+    iDestruct (heap_ref_sub_lookup l with "[$Hown $Hl]") as "%Hheapl";
+      rewrite lookup_singleton in Hheapl;
+      specialize (Hheapl eq_refl);
+      destruct Hheapl as [valueShare Hheapl].
+
+    (* we need to update both "Hj" and "Hl" and the heap and thread pool *)
+    (* First the "tpool_mapsto" *)
+    iCombine "Hj Hown" as "Hown".
+    iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
+    iDestruct (part_ref_update (P:= spec_ghost) _ _ _ _
+    ({[j := Some (fill K (Val (LitV LitUnit)))]}, to_heap gmap_empty)
+    (<[j := Some (fill K (Val (LitV LitUnit))) ]> (to_tpool tp), to_heap (heap σ)) with "Hown") as ">Hown".
+    {
+      intros g Hj.
+      split.
+      (* these values join properly *)
+      {
+        destruct Hj as [Htp Hheap].
+        split; auto. (* we only changed the thread pool here *)
+        simpl.
+        clear Hheap.
+        (* now we prove this joins for any arbitrary thread *)
+        intros thread.
+        specialize (Htp thread).
+        destruct (eq_dec thread j); subst.
+        - rewrite lookup_singleton in Htp.
+          rewrite lookup_singleton.
+          rewrite lookup_insert.
+          inv Htp. 
+          { apply lower_None2. }
+          inv H4.
+          { apply lower_Some; apply lower_None2. }
+          inv H5.
+        - rewrite ? lookup_insert_ne; auto.
+          rewrite ? lookup_insert_ne in Htp; auto.
+      }
+      (* if this is the only piece, it still joins *)
+      {
+        intros Heq; inv Heq.
+        rewrite insert_singleton.
+        reflexivity.
+      }
+    }
+    (* don't forget to break up the ghost_part_ref *)
+    iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
+
+
+    (* now the "heapS_mapsto" *)
+    iCombine "Hl Hown" as "Hown".
+    iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
+    (* NOTE: we include the prior update in this!!!  We'd be "removing" otherwise if we could even prove it *)
+    iDestruct (part_ref_update (P:= spec_ghost) _ _ _ _
+    (to_tpool [], {[l := Some (fullshare, Some v)]})
+    (<[j:=Some (fill K (Val (LitV LitUnit)))]> (to_tpool tp), <[l := Some (fullshare, Some v)]> (to_heap (heap σ))) with "Hown") as ">Hown".
+    {
+      intros g Hhp.
+      split.
+      (* The update joins *)
+      {
+        destruct Hhp as [Htp Hhp].
+        simpl in Htp, Hhp. 
+        simpl.
+        split; auto.
+        clear Htp. (* we don't care about the thread pool since it's static *)
+        intros loc.
+        rewrite ? snd_unfold. (* NOTE: why do I need this? *)
+        destruct (decide (loc = l)); subst.
+        (* loc = l *)
+        - specialize (Hhp l).
+          rewrite ? lookup_insert in Hhp.
+          rewrite ? lookup_insert.
+          inv Hhp.
+          { apply lower_None2. }
+          apply lower_Some.
+          destruct a3.
+          { 
+            destruct p.
+            destruct a2.
+            - destruct p.
+              inv H4.
+              destruct H5; destruct H5.
+              inv H6.
+              inv H5.
+              (* we can't have a top share and anything else *)
+              rewrite Share.glb_commute in H6.
+              rewrite Share.glb_top in H6.
+              contradiction.
+            - unfold sepalg.join.
+              reflexivity.
+          }
+          {
+            destruct a2.
+            - destruct p.
+              inv H4.
+            - inv H4.
+          }
+        (* loc ≠ l *)
+        - specialize (Hhp loc).
+          rewrite ? lookup_insert_ne; auto.
+          rewrite ? lookup_insert_ne in Hhp; auto.
+      }
+      (* if this is the only piece it is the full *)
+      {
+        intros Heq.
+        inv Heq.
+        rewrite insert_singleton.
+        rewrite H2.
+        reflexivity.
+      }
+    }
+    iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hl Hown]".
+    rewrite /UsrGhost.
+    iApply fupd_frame_l.
+    iSplitL "Hj".
+    { iExists sj; iFrame; iPureIntro; auto. }
+    iExists sl.
+    iApply fupd_frame_l.
+    iSplitR; first (iPureIntro; auto).
+    iFrame.
+    iApply "Hclose".
+    iNext.
+    rewrite /spec_inv.
+    iExists (<[j:=fill K (Val (LitV LitUnit))]> tp), (state_upd_heap <[l:=Some v]> σ).
+    rewrite to_heap_insert to_tpool_insert'; last eauto. iFrame. iPureIntro; split; auto.
+    eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.
+
+    (* show we *did* in fact have something in the heap *)
+    (* NOTE: if I find a better way to do this, update it here too! *)
+    rewrite /to_heap in Hheapl.
+    rewrite lookup_fmap in Hheapl.
+    destruct (heap σ !! l) eqn:Hpos; rewrite Hpos in Hheapl; simpl.
+    { 
+      rewrite fmap_Some in Hheapl. 
+      destruct Hheapl as [o' [Heq Hheapl]].
+      inv Heq.
+      inv Hheapl.
+      auto.
+    }
+    {
+      simpl in Hheapl.
+      inv Hheapl.
+    }
+  Qed.
 
 End heap.
