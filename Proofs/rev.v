@@ -64,14 +64,14 @@ Definition iInt x := iLit (LitInt x).
 Definition iPair l r := (PairV l r).
 
 (* NOTE: we don't want an iris heap here directly, we want our simulated one. *)
-Fixpoint Ilist (sigma : list Z) v :=
+Fixpoint Ilist (sigma : list Z) v : mpred :=
   match sigma with
   | x :: xs => ∃ (p : loc), ⌜ v = InjRV (iInt x) ⌝ ∗ ∃ (v' : ival), p |-> (iPair (iInt x) v') ∗ Ilist xs v'
   | [] => ⌜ v = InjLV (LitV LitUnit) ⌝
   end.
 
 (* and we can compare them *)
-Definition EquivList V I
+Definition EquivList V I : mpred
   := ∃ σ, Ilist σ I ∗ Vlist σ V.
 
 
@@ -86,13 +86,13 @@ Definition rev_list_internal_spec :=
       PROP()
       PARAMS(Vprev; Vcur)
       GLOBALS()
-      SEP(EquivList Vprev Iprev ∗ EquivList Vcur Icur ∗ 
+      SEP(EquivList Vprev Iprev * EquivList Vcur Icur *
             refines_right ctx (iris.rev_internal <AP> (Val Iprev) <AP> (Val Icur)))
     POST [ tptr node_t ]
       EX Vres: val, EX Ires: ival, EX σ': list Z,
       PROP()
       RETURN(Vres)
-      SEP(EquivList Vres Ires ∗ (refines_right ctx (ectxi_language.of_val Ires))).
+      SEP(EquivList Vres Ires * (refines_right ctx (ectxi_language.of_val Ires))).
 
 (* the equivalent wrappers *)
 Definition rev_list_spec :=
@@ -102,16 +102,22 @@ Definition rev_list_spec :=
       PROP()
       PARAMS(Vhead)
       GLOBALS()
-      SEP(EquivList Vhead Ihead ∗
+      SEP(EquivList Vhead Ihead *
             refines_right ctx (iris.rev_internal <AP> (Val Ihead)))
     POST [ tptr node_t ]
       EX Vres: val, EX Ires: ival,
       PROP()
       RETURN(Vres)
-      SEP(EquivList Vres Ires ∗ (refines_right ctx (ectxi_language.of_val Ires))).
+      SEP(EquivList Vres Ires * (refines_right ctx (ectxi_language.of_val Ires))).
 
 
 Definition Gprog : funspecs := ltac:(with_library prog [ 
     rev_list_internal_spec ;
     rev_list_spec
   ]).
+
+Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
+Proof.
+  start_function.
+  unfold iris.rev_internal.
+  SPR_beta.
