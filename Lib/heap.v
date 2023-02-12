@@ -264,7 +264,7 @@ Context `{ref_ctx: refines_ctx}.
   Qed.
 
   Lemma step_load E j K l hSh v:
-    nclose nspace ⊆ E →
+    nclose nspace ⊆ E → 
     spec_ctx ∗ (tpool_mapsto j (fill K (Load (Val (LitV (LitLoc l)))))) ∗ (heapS_mapsto hSh l v)
     ={E}=∗ (spec_ctx ∗ (tpool_mapsto j (fill K (of_val v))) ∗ (heapS_mapsto hSh l v)).
   Proof.
@@ -319,9 +319,8 @@ Context `{ref_ctx: refines_ctx}.
               apply lower_None1.
             }
             {
-              rewrite lookup_singleton_ne in H3.
+              rewrite lookup_singleton_ne in H3; auto.
               inv H3.
-              auto.
             }
         }
         (* g contains j *)
@@ -359,33 +358,26 @@ Context `{ref_ctx: refines_ctx}.
         reflexivity.
     }
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
-    (* NOTE: why do I need to keep doing this? *)
-    iApply fupd_frame_l; iSplitL "Hj".
-    { iExists sj; iFrame; iPureIntro; auto. }
-    iExists sl. 
-    iApply fupd_frame_l; iSplitR; first (iPureIntro; auto).
-    iFrame.
-    iApply "Hclose".
+    iMod ("Hclose" with "[Hown]") as "_".
+    { 
     iNext.
     iExists (<[j:=fill K (of_val v)]> tp), σ.
     rewrite to_tpool_insert'; last eauto. iFrame. iPureIntro.
     split; auto.
     eapply rtc_r, step_insert_no_fork; eauto. econstructor; eauto.
-    (* show this l actually does point to v in the heap *)
-    (* NOTE: is there an easier way to do this? *)
     rewrite /to_heap in Hheapl.
     rewrite lookup_fmap in Hheapl.
-    destruct (heap σ !! l) eqn:Hpos; rewrite Hpos in Hheapl; simpl.
-    { 
-      rewrite fmap_Some in Hheapl. 
-      destruct Hheapl as [v' [Heq Hheapl]].
-      inv Hheapl.
-      auto.
+    destruct (heap σ !! l) eqn:Hpos; rewrite Hpos in Hheapl; simpl; try discriminate.
+    simpl in Hheapl.
+    inv Hheapl.
+    reflexivity.
     }
-    {
-      simpl in Hheapl.
-      inv Hheapl.
-    }
+    iModIntro.
+    iSplitL "Hj".
+    { iExists sj; iFrame; iPureIntro; auto. }
+    iExists sl. 
+    iSplitR; first (iPureIntro; auto).
+    iFrame.
   Qed.
 
   Lemma step_store E j K l v' e v:
@@ -452,7 +444,6 @@ Context `{ref_ctx: refines_ctx}.
     (* don't forget to break up the ghost_part_ref *)
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hj Hown]".
 
-
     (* now the "heapS_mapsto" *)
     iCombine "Hl Hown" as "Hown".
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "Hown") as "Hown".
@@ -471,7 +462,7 @@ Context `{ref_ctx: refines_ctx}.
         split; auto.
         clear Htp. (* we don't care about the thread pool since it's static *)
         intros loc.
-        rewrite ? snd_unfold. (* NOTE: why do I need this? *)
+        simpl.
         destruct (decide (loc = l)); subst.
         (* loc = l *)
         - specialize (Hhp l).
@@ -487,11 +478,8 @@ Context `{ref_ctx: refines_ctx}.
             - destruct p.
               inv H4.
               destruct H5; destruct H5.
-              inv H6.
+              apply join_Tsh in H5.
               inv H5.
-              (* we can't have a top share and anything else *)
-              rewrite Share.glb_commute in H6.
-              rewrite Share.glb_top in H6.
               contradiction.
             - unfold sepalg.join.
               reflexivity.
@@ -518,14 +506,8 @@ Context `{ref_ctx: refines_ctx}.
     }
     iDestruct (ghost_part_ref_join (P:= spec_ghost) with "[$Hown]") as "[Hl Hown]".
     rewrite /UsrGhost.
-    iApply fupd_frame_l.
-    iSplitL "Hj".
-    { iExists sj; iFrame; iPureIntro; auto. }
-    iExists sl.
-    iApply fupd_frame_l.
-    iSplitR; first (iPureIntro; auto).
-    iFrame.
-    iApply "Hclose".
+    iMod ("Hclose" with "[Hown]") as "_".
+    {
     iNext.
     rewrite /spec_inv.
     iExists (<[j:=fill K (Val (LitV LitUnit))]> tp), (state_upd_heap <[l:=Some v]> σ).
@@ -538,9 +520,7 @@ Context `{ref_ctx: refines_ctx}.
     rewrite lookup_fmap in Hheapl.
     destruct (heap σ !! l) eqn:Hpos; rewrite Hpos in Hheapl; simpl.
     { 
-      rewrite fmap_Some in Hheapl. 
-      destruct Hheapl as [o' [Heq Hheapl]].
-      inv Heq.
+      simpl in Hheapl.
       inv Hheapl.
       auto.
     }
@@ -548,6 +528,13 @@ Context `{ref_ctx: refines_ctx}.
       simpl in Hheapl.
       inv Hheapl.
     }
+    }
+    iModIntro.
+    iSplitL "Hj".
+    { iExists sj; iFrame; iPureIntro; auto. }
+    iExists sl.
+    iSplitR; first (iPureIntro; auto).
+    iFrame.
   Qed.
 
 End heap.
