@@ -7,7 +7,7 @@ Module iris.
 Import compcert.lib.Integers.
 Import proofmode notation.
 
-Definition rev_internal : val := 
+Definition rev_internal : expr := 
   (* NOTE: there is a difference between λ: and rec:  besides notation! Recursion! *)
   rec: "rev_internal" "prev" "cur" :=
     match: "cur" with
@@ -70,20 +70,48 @@ Fixpoint Ilist (sigma : list Z) v :=
   | [] => ⌜ v = InjLV (LitV LitUnit) ⌝
   end.
 
+(* and we can compare them *)
+Definition EquivList V I
+  := ∃ σ, Ilist σ I ∗ Vlist σ V.
 
 
-(* here, the refines we had before won't work... *)
-Definition fspec :=
-  DECLARE _rev
-  WITH gv: globals, ctx: ref_id, n : int
-  PRE [ tuint ]
-    PROP()
-    PARAMS(Vint n)
-    GLOBALS()
-    SEP(refines_right ctx (App (Val iris.factI) (Val (LitV (LitInt (Int.unsigned n))))))
-  POST [ tuint ] 
-    EX v' : ival, EX v : val,
-    PROP(nat_relate v v')
-    RETURN(v)
-    SEP((refines_right ctx (ectxi_language.of_val v'))).
+(* so I can stop seeing so many App constructors *)
+Notation "a <AP> b" := (App a b) (at level 20).
 
+(* The main program we want to verify *)
+Definition rev_list_internal_spec :=
+  DECLARE _rev_list_internal
+    WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival
+    PRE [ tptr node_t, tptr node_t ]
+      PROP()
+      PARAMS(Vprev; Vcur)
+      GLOBALS()
+      SEP(EquivList Vprev Iprev ∗ EquivList Vcur Icur ∗ 
+            refines_right ctx (iris.rev_internal <AP> (Val Iprev) <AP> (Val Icur)))
+    POST [ tptr node_t ]
+      EX Vres: val, EX Ires: ival, EX σ': list Z,
+      PROP()
+      RETURN(Vres)
+      SEP(EquivList Vres Ires ∗ (refines_right ctx (ectxi_language.of_val Ires))).
+
+(* the equivalent wrappers *)
+Definition rev_list_spec :=
+  DECLARE _rev_list
+    WITH gv: globals, ctx: ref_id, Vhead: val, Ihead: ival
+    PRE [ tptr node_t ]
+      PROP()
+      PARAMS(Vhead)
+      GLOBALS()
+      SEP(EquivList Vhead Ihead ∗
+            refines_right ctx (iris.rev_internal <AP> (Val Ihead)))
+    POST [ tptr node_t ]
+      EX Vres: val, EX Ires: ival,
+      PROP()
+      RETURN(Vres)
+      SEP(EquivList Vres Ires ∗ (refines_right ctx (ectxi_language.of_val Ires))).
+
+
+Definition Gprog : funspecs := ltac:(with_library prog [ 
+    rev_list_internal_spec ;
+    rev_list_spec
+  ]).
