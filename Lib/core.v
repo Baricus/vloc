@@ -164,8 +164,6 @@ Definition spec_ctx : mpred :=
 *)
 Definition tpool_mapsto (j : nat) (e : iexp) := 
   UsrGhost ({[j := Some e]}, to_heap gmap_empty).
-(* TODO: figure out if this is actually exported? My bet is ... no *)
-Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
 
 (* ref_id
     A context and associated thread identifier
@@ -176,7 +174,7 @@ Definition add_to_ctx id (ctx : list ectx_item) : ref_id :=
   RefId (tp_id id) (ctx ++ tp_ctx id).
 
 Definition refines_right (r : ref_id) (e : iexp) := 
-  (spec_ctx * (tp_id r) |=> (fill (tp_ctx r) e))%logic.
+  (spec_ctx * tpool_mapsto (tp_id r) (fill (tp_ctx r) e))%logic.
 
 (* refines_right_add_ctx
     Filling is the same as adding something to the "forall K context" 
@@ -194,3 +192,12 @@ End refinement.
 
 (* hints have to go here since they don't export otherwise *)
 #[export] Hint Resolve tpool_lookup_Some : core.
+
+(* so do notations? *)
+(* TODO: better notation *)
+#[export] Notation "a |-> b"   := (heapS_mapsto fullshare a b) (at level 20).
+#[export] Notation "a { s }-> b" := (heapS_mapsto s a b) (at level 20).
+
+(* TODO: figure out if this is actually exported? My bet is ... no *)
+#[export] Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
+
