@@ -39,6 +39,21 @@ Fixpoint fact n : nat :=
   | S (n') => n * (fact n')
   end.
 
+(* NOTE: Included for example; missing modulo *)
+Definition fstd :=
+  DECLARE _factorial
+  WITH gv: globals, n:nat
+  PRE [ tuint ]
+    PROP((0 <= n <= Int.max_unsigned)%Z)
+    PARAMS(Vint (Int.repr n))
+    GLOBALS()
+    SEP()
+  POST [ tuint ]
+    EX ret: val,
+    PROP(ret = Vint (Int.repr (fact n)))
+    RETURN(ret)
+    SEP().
+
 (* here, the refines we had before won't work... *)
 Definition fspec :=
   DECLARE _factorial
@@ -131,7 +146,9 @@ Proof.
       rewrite Z.add_0_r.
       ecancel.
     }
-      rewrite ? Int.unsigned_repr; rep_lia.
+      (* NOTE: why this? *)
+      apply Z.compare_ge_iff.
+      rewrite ? Int.unsigned_repr; try rep_lia.
     }
   (* extract recursive value *)
   Intros ret.
