@@ -30,6 +30,7 @@ From Vloc Require Import core pure.
    | fail "Could not find a pure step to take (no pure_ tactic found)"
   ].
 
+(* NOTE: this is obsolete; does not contain fixes for instruction level version *)
 #[export] Ltac step_pure_r ctx :=
   let e' := fresh "e'" in
   let Hcond := fresh "Hcond" in
@@ -80,6 +81,7 @@ From Vloc Require Import core pure.
         reshape_expr expr ltac:(fun K e => 
           replace expr with (fill K e) by (by rewrite ? fill_app);
           evar (e' : iexp);
+          gather_SEP (refines_right _ _);
           viewshift_SEP 0 (refines_right ctx (fill K e'));
           first (
             go_lower; 
