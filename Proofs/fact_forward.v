@@ -136,6 +136,7 @@ Proof.
       rewrite Z.add_0_r.
       ecancel.
     }
+      apply Z.compare_ge_iff.
       rewrite ? Int.unsigned_repr; rep_lia.
     }
   (* extract recursive value *)
