@@ -116,72 +116,47 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     rev_list_spec
   ]).
 
-(* NOTE: TEMPORARY COPY FOR DEBUG *)
-#[local] Ltac step_pure_r_instr tactic :=
-  let e' := fresh "e'" in
-  let Hcond := fresh "Hcond" in
-    try lazymatch goal with
-    (* if we have a decision, make it before we try to step further *)
-    | |- context [ bool_decide ?cond ] => 
-        destruct (bool_decide cond) eqn:Hcond;
-        [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
-        try contradiction; try lia; 
-        clear Hcond
-    end;
-    (* try to step to the next instruction *)
-    lazymatch goal with
-    | |- context[refines_right ?ctx ?expr] =>
-        reshape_expr expr ltac:(fun K e => 
-          replace expr with (fill K e) by (by rewrite ? fill_app);
-          evar (e' : iexp);
-          (*TODO: look at how this works *)
-          gather_SEP (refines_right _ _);
-          viewshift_SEP 0 (refines_right ctx (fill K e'));
-          first (
-            go_lower; 
-            eapply (refines_right_pure_r e e' _ _ _ K 1);
-            [tactic e' | auto | auto]
-          );
-          simpl in e';
-          subst e';
-          simpl 
-          )
-    | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
-  end;
-  simpl.
+(*Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).*)
 
-#[export] Ltac SPR_beta     := step_pure_r_instr  ltac:(fun _ => apply pure_beta; apply AsRecV_recv).
+(*NOTE: trying out making a nicer viewshift_SEP *)
+Tactic Notation "viewshift_SEP'" uconstr(L) constr(L') :=
+  let i := fresh "i" in freeze i := L; thaw i; viewshift_SEP 0 L'.
 
-Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).
+(*NOTE: gather_SEP really runs let i := fresh "i" in freeze i := L; thaw i. for any input L *)
+
+
+Lemma Equiv_null_l Ival :
+  EquivList nullval Ival |-- EquivList nullval (InjLV (iLit iUnit)).
+Proof.
+  unfold EquivList.
+  (*NOTE: how to do in one step? *)
+  iIntros "R".
+  iDestruct "R" as (l) "[Ril Rvl]".
+  iExists []; auto.
+Qed.
+
+Lemma Equiv_null_r Vval :
+  EquivList Vval (InjLV (iLit iUnit)) |-- EquivList nullval (InjLV (iLit iUnit)).
+Proof.
+  iIntros "R".
+  iDestruct "R" as (l) "[Ril Rvl]".
+  iExists []; auto.
+Qed.
+
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
   start_function.
   unfold iris.rev_internal.
+  (* NOTE: this works! *)
+  (*viewshift_SEP' (refines_right _ _) (EquivList Vprev Iprev).*)
   SPR_beta.
-  Set Ltac Debug.
-  let e' := fresh "e'" in
-  let Hcond := fresh "Hcond" in
-    (* try to step to the next instruction *)
-    lazymatch goal with
-    | |- context[refines_right ?ctx ?expr] => idtac "found the refines";
-        reshape_expr expr ltac:(fun K e => 
-          replace expr with (fill K e) by (by rewrite ? fill_app);
-          evar (e' : iexp);
-          idtac "current expression: ";
-          idtac e;
-          gather_SEP (refines_right _ _); (* NOTE: pulls refines_right to position 0 *)
-          viewshift_SEP 0 (refines_right ctx (fill K e')); (* works on position 0 *)
-          first (
-            go_lower; 
-            eapply (refines_right_pure_r e e' _ _ _ K 1);
-            idtac "applied pure_r";
-            [apply pure_beta; apply AsRecV_recv | auto | auto]
-          );
-          simpl in e';
-          subst e';
-          simpl 
-          )
-    | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
-  end;
-  simpl.
+  SPR_recc.
+  SPR_beta.
+  evar (e : iexp).
+  hint.
+  forward_if (
+    PROP ((Vcur  nullval)%logic)
+    LOCAL (temp _prev Vprev; temp _cur Vcur)
+    SEP (refines_right ctx e; EquivList Vprev Iprev; EquivList Vcur Icur)
+  ).
