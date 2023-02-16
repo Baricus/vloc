@@ -7,7 +7,7 @@ Module iris.
 Import compcert.lib.Integers.
 Import proofmode notation.
 
-Definition rev_internal : expr := 
+Definition rev_internal : val := 
   (* NOTE: there is a difference between λ: and rec:  besides notation! Recursion! *)
   rec: "rev_internal" "prev" "cur" :=
     match: "cur" with
@@ -76,7 +76,7 @@ Definition EquivList V I : mpred
 
 
 (* so I can stop seeing so many App constructors *)
-Notation "a <AP> b" := (App a b) (at level 20).
+Notation "a <AP> b" := (App a b) (at level 21, left associativity).
 
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
@@ -86,13 +86,13 @@ Definition rev_list_internal_spec :=
       PROP()
       PARAMS(Vprev; Vcur)
       GLOBALS()
-      SEP(EquivList Vprev Iprev * EquivList Vcur Icur *
-            refines_right ctx (iris.rev_internal <AP> (Val Iprev) <AP> (Val Icur)))
+      SEP(EquivList Vprev Iprev ; EquivList Vcur Icur ;
+            refines_right ctx ((of_val iris.rev_internal) <AP> (Val Iprev) <AP> (Val Icur)))
     POST [ tptr node_t ]
       EX Vres: val, EX Ires: ival, EX σ': list Z,
       PROP()
       RETURN(Vres)
-      SEP(EquivList Vres Ires * (refines_right ctx (ectxi_language.of_val Ires))).
+      SEP(EquivList Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
 
 (* the equivalent wrappers *)
 Definition rev_list_spec :=
@@ -102,13 +102,13 @@ Definition rev_list_spec :=
       PROP()
       PARAMS(Vhead)
       GLOBALS()
-      SEP(EquivList Vhead Ihead *
-            refines_right ctx (iris.rev_internal <AP> (Val Ihead)))
+      SEP(EquivList Vhead Ihead ;
+            refines_right ctx ((of_val iris.iRev) <AP> (Val Ihead)))
     POST [ tptr node_t ]
       EX Vres: val, EX Ires: ival,
       PROP()
       RETURN(Vres)
-      SEP(EquivList Vres Ires * (refines_right ctx (ectxi_language.of_val Ires))).
+      SEP(EquivList Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
 
 
 Definition Gprog : funspecs := ltac:(with_library prog [ 
@@ -116,8 +116,72 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     rev_list_spec
   ]).
 
+(* NOTE: TEMPORARY COPY FOR DEBUG *)
+#[local] Ltac step_pure_r_instr tactic :=
+  let e' := fresh "e'" in
+  let Hcond := fresh "Hcond" in
+    try lazymatch goal with
+    (* if we have a decision, make it before we try to step further *)
+    | |- context [ bool_decide ?cond ] => 
+        destruct (bool_decide cond) eqn:Hcond;
+        [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
+        try contradiction; try lia; 
+        clear Hcond
+    end;
+    (* try to step to the next instruction *)
+    lazymatch goal with
+    | |- context[refines_right ?ctx ?expr] =>
+        reshape_expr expr ltac:(fun K e => 
+          replace expr with (fill K e) by (by rewrite ? fill_app);
+          evar (e' : iexp);
+          (*TODO: look at how this works *)
+          gather_SEP (refines_right _ _);
+          viewshift_SEP 0 (refines_right ctx (fill K e'));
+          first (
+            go_lower; 
+            eapply (refines_right_pure_r e e' _ _ _ K 1);
+            [tactic e' | auto | auto]
+          );
+          simpl in e';
+          subst e';
+          simpl 
+          )
+    | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+  end;
+  simpl.
+
+#[export] Ltac SPR_beta     := step_pure_r_instr  ltac:(fun _ => apply pure_beta; apply AsRecV_recv).
+
+Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).
+
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
   start_function.
   unfold iris.rev_internal.
   SPR_beta.
+  Set Ltac Debug.
+  let e' := fresh "e'" in
+  let Hcond := fresh "Hcond" in
+    (* try to step to the next instruction *)
+    lazymatch goal with
+    | |- context[refines_right ?ctx ?expr] => idtac "found the refines";
+        reshape_expr expr ltac:(fun K e => 
+          replace expr with (fill K e) by (by rewrite ? fill_app);
+          evar (e' : iexp);
+          idtac "current expression: ";
+          idtac e;
+          gather_SEP (refines_right _ _); (* NOTE: pulls refines_right to position 0 *)
+          viewshift_SEP 0 (refines_right ctx (fill K e')); (* works on position 0 *)
+          first (
+            go_lower; 
+            eapply (refines_right_pure_r e e' _ _ _ K 1);
+            idtac "applied pure_r";
+            [apply pure_beta; apply AsRecV_recv | auto | auto]
+          );
+          simpl in e';
+          subst e';
+          simpl 
+          )
+    | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+  end;
+  simpl.
