@@ -53,7 +53,7 @@ Fixpoint Vlist (sigma: list Z) (p: val) : mpred :=
     (* NOTE: should malloc_token be here? -> Probably!  It makes sense here. *)
     data_at Ews node_t (Vint (Int.repr h),y) p  *  malloc_token Ews node_t p * Vlist hs y
  | nil => 
-     ⌜ (p = nullval) ⌝ (* NOTE: I used to have an emp here; why? *)
+     (!! (p = nullval) && emp)%logic  (* NOTE: I used to have an emp here; why? *)
  end.
 
 (* now an iris list *)
@@ -67,12 +67,12 @@ Definition iPair l r := (PairV l r).
 Fixpoint Ilist (sigma : list Z) v : mpred :=
   match sigma with
   | x :: xs => ∃ (p : loc), ⌜ v = InjRV (iInt x) ⌝ ∗ ∃ (v' : ival), p |-> (iPair (iInt x) v') ∗ Ilist xs v'
-  | [] => ⌜ v = InjLV (LitV LitUnit) ⌝
+  | [] => (!! ( v = InjLV (LitV LitUnit) ) && emp)%logic
   end.
 
 (* and we can compare them *)
-Definition EquivList V I : mpred
-  := ∃ σ, Ilist σ I ∗ Vlist σ V.
+Definition EquivList σ V I : mpred
+  := (Ilist σ I * Vlist σ V)%logic.
 
 
 (* so I can stop seeing so many App constructors *)
@@ -81,34 +81,34 @@ Notation "a <AP> b" := (App a b) (at level 21, left associativity).
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
   DECLARE _rev_list_internal
-    WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival
+    WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival, Lcur: list Z, Lprev: list Z
     PRE [ tptr node_t, tptr node_t ]
       PROP()
       PARAMS(Vprev; Vcur)
       GLOBALS()
-      SEP(EquivList Vprev Iprev ; EquivList Vcur Icur ;
+      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur ;
             refines_right ctx ((of_val iris.rev_internal) <AP> (Val Iprev) <AP> (Val Icur)))
     POST [ tptr node_t ]
       EX Vres: val, EX Ires: ival, EX σ': list Z,
       PROP()
       RETURN(Vres)
-      SEP(EquivList Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
+      SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
 
 (* the equivalent wrappers *)
 Definition rev_list_spec :=
   DECLARE _rev_list
-    WITH gv: globals, ctx: ref_id, Vhead: val, Ihead: ival
+    WITH gv: globals, ctx: ref_id, Vhead: val, Ihead: ival, σ: list Z
     PRE [ tptr node_t ]
       PROP()
       PARAMS(Vhead)
       GLOBALS()
-      SEP(EquivList Vhead Ihead ;
+      SEP(EquivList σ Vhead Ihead ;
             refines_right ctx ((of_val iris.iRev) <AP> (Val Ihead)))
     POST [ tptr node_t ]
-      EX Vres: val, EX Ires: ival,
+      EX Vres: val, EX Ires: ival, EX σ': list Z,
       PROP()
       RETURN(Vres)
-      SEP(EquivList Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
+      SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
 
 
 Definition Gprog : funspecs := ltac:(with_library prog [ 
@@ -125,24 +125,35 @@ Tactic Notation "viewshift_SEP'" uconstr(L) constr(L') :=
 (*NOTE: gather_SEP really runs let i := fresh "i" in freeze i := L; thaw i. for any input L *)
 
 
-Lemma Equiv_null_l Ival :
-  EquivList nullval Ival |-- EquivList nullval (InjLV (iLit iUnit)).
+Lemma Equiv_null_l σ Ival :
+  EquivList σ nullval Ival |-- EquivList [] nullval Ival.
 Proof.
-  unfold EquivList.
+  destruct σ; auto.
   (*NOTE: how to do in one step? *)
-  iIntros "R".
-  iDestruct "R" as (l) "[Ril Rvl]".
-  iExists []; auto.
+  iIntros "[Ri Rv]".
+  iDestruct "Rv" as (y) "[[Rnull Rtok] Rrest]".
+  fold Vlist.
+  iDestruct (field_at_ptr_neq_null with "Rnull") as "%Hcontra".
+  exfalso.
+  apply Hcontra.
+  apply ptr_eq_nullval.
 Qed.
 
-Lemma Equiv_null_r Vval :
-  EquivList Vval (InjLV (iLit iUnit)) |-- EquivList nullval (InjLV (iLit iUnit)).
+Lemma Equiv_null_r σ Vval :
+  EquivList σ Vval (InjLV (iLit iUnit)) |-- (EquivList [] Vval (InjLV (iLit iUnit))).
 Proof.
-  iIntros "R".
-  iDestruct "R" as (l) "[Ril Rvl]".
-  iExists []; auto.
+  destruct σ; auto.
+  iIntros "[Ril Rvl]".
+  iDestruct "Ril" as (p) "[%Hcontra RUselessButICantDrop]".
+  discriminate.
 Qed.
 
+Lemma Equiv_empty Vval Ival :
+  EquivList [] Vval Ival |-- EquivList [] Vval Ival * (!! (Vval = nullval) && emp) * (!! (Ival = (InjLV (iLit (iUnit)))) && emp).
+Proof.
+  iIntros "[[%Ri _] [%Rv _]]".
+  auto.
+Qed.
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
@@ -153,10 +164,24 @@ Proof.
   SPR_beta.
   SPR_recc.
   SPR_beta.
-  evar (e : iexp).
-  hint.
+  (* either cur is null or not *)
+  destruct (eq_dec Vcur nullval); subst.
+  {
+    (* if it is null, then the iris one is too *)
+    sep_apply Equiv_null_l.
+    sep_apply Equiv_empty.
+    Intros.
+    rewrite H.
+    unfold iLit, iUnit.
+    forward_if.
+    {
+
+      forward.
+      iIntros "[[[[[REcur _] HIcur] Remp] RrefR] REqPrev]".
+    }
+  }
   forward_if (
-    PROP ((Vcur  nullval)%logic)
+    PROP ((ptr_eq Vcur nullval)%logic)
     LOCAL (temp _prev Vprev; temp _cur Vcur)
     SEP (refines_right ctx e; EquivList Vprev Iprev; EquivList Vcur Icur)
   ).
