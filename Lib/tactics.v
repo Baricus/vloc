@@ -76,7 +76,7 @@ From Vloc Require Import core pure.
     | |- ?anything => idtac (* do nothing tactic *)
     end;
     (* try to step to the next instruction *)
-    lazymatch goal with
+  lazymatch goal with
     | |- context[refines_right ?ctx ?expr] => 
         reshape_expr expr ltac:(fun K e => 
           replace expr with (fill K e) by (by rewrite ? fill_app);
@@ -117,8 +117,8 @@ From Vloc Require Import core pure.
       subst e'; apply pure_if_false
   end).
 
-#[export] Ltac SPR_inr      := step_pure_r_instr  ltac:(fun _ => apply pure_case_inr).
-#[export] Ltac SPR_inl      := step_pure_r_instr  ltac:(fun _ => apply pure_case_inl).
+#[export] Ltac SPR_inr      := step_pure_r_instr  ltac:(fun _ => apply (pure_case_inr _ _ _)).
+#[export] Ltac SPR_inl      := step_pure_r_instr  ltac:(fun _ => apply (pure_case_inl _ _ _)).
 
 #[export] Ltac SPR_beta     := step_pure_r_instr  ltac:(fun _ => apply pure_beta; apply AsRecV_recv).
 #[export] Ltac SPR_eqop     := step_pure_r_instr  ltac:(fun _ => apply pure_eqop).
