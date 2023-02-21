@@ -66,7 +66,7 @@ Definition iPair l r := (PairV l r).
 (* NOTE: we don't want an iris heap here directly, we want our simulated one. *)
 Fixpoint Ilist (sigma : list Z) v : mpred :=
   match sigma with
-  | x :: xs => ∃ (p : loc), ⌜ v = InjRV (iInt x) ⌝ ∗ ∃ (v' : ival), p |-> (iPair (iInt x) v') ∗ Ilist xs v'
+  | x :: xs => ∃ (p : loc), ⌜ v = InjRV (iLit (LitLoc p)) ⌝ ∗ ∃ (v' : ival), p |-> (iPair (iInt x) v') ∗ Ilist xs v'
   | [] => (!! (v = InjLV (LitV LitUnit)) && emp)%logic
   end.
 
@@ -77,44 +77,6 @@ Definition EquivList σ V I : mpred
 
 (* so I can stop seeing so many App constructors *)
 Notation "a <AP> b" := (App a b) (at level 21, left associativity).
-
-(* The main program we want to verify *)
-Definition rev_list_internal_spec :=
-  DECLARE _rev_list_internal
-    WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival, Lcur: list Z, Lprev: list Z
-    PRE [ tptr node_t, tptr node_t ]
-      PROP()
-      PARAMS(Vprev; Vcur)
-      GLOBALS()
-      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur ;
-            refines_right ctx ((of_val iris.rev_internal) <AP> (Val Iprev) <AP> (Val Icur)))
-    POST [ tptr node_t ]
-      EX Vres: val, EX Ires: ival, EX σ': list Z,
-      PROP()
-      RETURN(Vres)
-      SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
-
-(* the equivalent wrappers *)
-Definition rev_list_spec :=
-  DECLARE _rev_list
-    WITH gv: globals, ctx: ref_id, Vhead: val, Ihead: ival, σ: list Z
-    PRE [ tptr node_t ]
-      PROP()
-      PARAMS(Vhead)
-      GLOBALS()
-      SEP(EquivList σ Vhead Ihead ;
-            refines_right ctx ((of_val iris.iRev) <AP> (Val Ihead)))
-    POST [ tptr node_t ]
-      EX Vres: val, EX Ires: ival, EX σ': list Z,
-      PROP()
-      RETURN(Vres)
-      SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
-
-
-Definition Gprog : funspecs := ltac:(with_library prog [ 
-    rev_list_internal_spec ;
-    rev_list_spec
-  ]).
 
 (*Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).*)
 
@@ -155,6 +117,86 @@ Proof.
   auto.
 Qed.
 
+(* for the non-empty cases *)
+Lemma Equiv_not_null σ Vval Ival :
+  (Vval ≠ nullval \/ Ival ≠ (InjLV (iLit iUnit))) ->
+  EquivList σ Vval Ival |-- EX (s : Z), EX (σ' : list Z), (EquivList (s :: σ') Vval Ival).
+Proof.
+  (* exhaustive check of all the cases *)
+  intros H; destruct H as [HV | HI]; destruct σ as [| s σ'].
+  {
+    iIntros "[_ [%Contra _]]".
+    contradiction.
+  }
+  2:{
+    iIntros "[[%Contra _] _]".
+    contradiction.
+  }
+  1,2:
+    iIntros "R";
+    iExists s;
+    iExists σ';
+    iFrame.
+Qed.
+
+Lemma Equiv_pop s σ' Vval Ival:
+  EquivList (s :: σ') Vval Ival |-- 
+      EX Vval', EX Ival', EX p:loc, (
+      (data_at Ews node_t (Vint (Int.repr s),Vval') Vval * malloc_token Ews node_t Vval) *
+      (!! (Ival = InjRV (iLit (LitLoc p))) && emp) * p |-> (iPair (iInt s) Ival') *
+      EquivList σ' Vval' Ival').
+Proof.
+  iIntros  "[RI RV]".
+  simpl.
+  iDestruct "RI" as (p Hip Ival') "(RIpts & Ri')".
+  iDestruct "RV" as (Vval') "[[Rvdata Rvmal] Rv']".
+  iExists Vval'.
+  iExists Ival'.
+  iExists p.
+  (*NOTE: where does this true come from? *)
+  iFrame.
+  auto.
+Qed.
+  
+
+(* The main program we want to verify *)
+Definition rev_list_internal_spec :=
+  DECLARE _rev_list_internal
+    WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival, Lcur: list Z, Lprev: list Z
+    PRE [ tptr node_t, tptr node_t ]
+      PROP()
+      PARAMS(Vprev; Vcur)
+      GLOBALS()
+      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur ;
+            refines_right ctx ((of_val iris.rev_internal) <AP> (Val Iprev) <AP> (Val Icur)))
+    POST [ tptr node_t ]
+      EX Vres: val, EX Ires: ival, EX σ': list Z,
+      PROP()
+      RETURN(Vres)
+      SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
+
+(* the equivalent wrappers *)
+Definition rev_list_spec :=
+  DECLARE _rev_list
+    WITH gv: globals, ctx: ref_id, Vhead: val, Ihead: ival, σ: list Z
+    PRE [ tptr node_t ]
+      PROP()
+      PARAMS(Vhead)
+      GLOBALS()
+      SEP(EquivList σ Vhead Ihead ;
+            refines_right ctx ((of_val iris.iRev) <AP> (Val Ihead)))
+    POST [ tptr node_t ]
+      EX Vres: val, EX Ires: ival, EX σ': list Z,
+      PROP()
+      RETURN(Vres)
+      SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
+
+
+Definition Gprog : funspecs := ltac:(with_library prog [ 
+    rev_list_internal_spec ;
+    rev_list_spec
+  ]).
+
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
@@ -163,14 +205,14 @@ Proof.
   (* NOTE: this works! *)
   (*viewshift_SEP' (refines_right _ _) (EquivList Vprev Iprev).*)
   SPR_beta.
+  fold iris.rev_internal. (* do remember to fold this! *)
   SPR_recc.
   SPR_beta.
   (* either cur is null or not *)
   destruct (eq_dec Vcur nullval); subst.
   {
     (* if it is null, then the iris one is too *)
-    sep_apply Equiv_null_l.
-    sep_apply Equiv_empty.
+    sep_apply Equiv_null_l; sep_apply Equiv_empty.
     (* NOTE: why do I need this here? It can't pull the emp's apart right otherwise? *)
     autorewrite with norm.
     Intros.
@@ -206,6 +248,21 @@ Proof.
   }
   {
     (* If it's not null, then... *)
+
+    (* we have an element in BOTH lists *)
+    sep_apply (Equiv_not_null Lcur); [left; auto|].
+    Intros c Lcur'; clear Lcur.
+    sep_apply (Equiv_pop c Lcur').
+    (*NOTE: why do I get an emp here? I can't pull stuff out without getting it *)
+    (* Pulling out the location just rips the pure hypothesis out as well *)
+    Intros Vcur' Icur' IlocCur.
+    autorewrite with norm.
+    rename H into HIlocCur; rewrite ! HIlocCur.
+
+    (* and we can reduce the right hand side! *)
+    SPR_inr.
+    SPR_recc; SPR_beta.
+    
   }
 
   ).
