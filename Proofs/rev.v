@@ -53,7 +53,7 @@ Fixpoint Vlist (sigma: list Z) (p: val) : mpred :=
     (* NOTE: should malloc_token be here? -> Probably!  It makes sense here. *)
     data_at Ews node_t (Vint (Int.repr h),y) p  *  malloc_token Ews node_t p * Vlist hs y
  | nil => 
-     (!! (p = nullval) && emp)%logic  (* NOTE: I used to have an emp here; why? *)
+     (!! (p = nullval) && emp)%logic  (* NOTE: I used to have an emp here; why? -> Allows binding logic to empty memory *)
  end.
 
 (* now an iris list *)
@@ -67,7 +67,7 @@ Definition iPair l r := (PairV l r).
 Fixpoint Ilist (sigma : list Z) v : mpred :=
   match sigma with
   | x :: xs => ∃ (p : loc), ⌜ v = InjRV (iInt x) ⌝ ∗ ∃ (v' : ival), p |-> (iPair (iInt x) v') ∗ Ilist xs v'
-  | [] => (!! ( v = InjLV (LitV LitUnit) ) && emp)%logic
+  | [] => (!! (v = InjLV (LitV LitUnit)) && emp)%logic
   end.
 
 (* and we can compare them *)
@@ -155,6 +155,7 @@ Proof.
   auto.
 Qed.
 
+
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
   start_function.
@@ -170,18 +171,41 @@ Proof.
     (* if it is null, then the iris one is too *)
     sep_apply Equiv_null_l.
     sep_apply Equiv_empty.
+    (* NOTE: why do I need this here? It can't pull the emp's apart right otherwise? *)
+    autorewrite with norm.
     Intros.
-    rewrite H.
+    rename H into HIcurNull.
+    rewrite HIcurNull. (* cannot subst for some reason *)
     unfold iLit, iUnit.
-    forward_if.
-    {
 
+    (* Step iris to ending *)
+    SPR_inl.
+    SPR_recc.
+    SPR_beta.
+
+    evar (e : iexp).
+    (* We cannot get past this if statement in this case *)
+    forward_if (
+      PROP (False)
+      LOCAL (temp _prev Vprev; temp _cur nullval)
+      SEP (refines_right ctx e; EquivList Lprev Vprev Iprev; EquivList [] nullval (InjLV (LitV LitUnit)))
+    ).
+    {
       forward.
-      iIntros "[[[[[REcur _] HIcur] Remp] RrefR] REqPrev]".
+      iIntros "[[ReqNull RrefR] ReqPrev]".
+      iExists Vprev.
+      iExists Iprev.
+      iExists Lprev.
+      iFrame.
+      auto.
+    }
+    {
+      (* Null != Null *)
+      contradiction.
     }
   }
-  forward_if (
-    PROP ((ptr_eq Vcur nullval)%logic)
-    LOCAL (temp _prev Vprev; temp _cur Vcur)
-    SEP (refines_right ctx e; EquivList Vprev Iprev; EquivList Vcur Icur)
+  {
+    (* If it's not null, then... *)
+  }
+
   ).
