@@ -80,10 +80,6 @@ Notation "a <AP> b" := (App a b) (at level 21, left associativity).
 
 (*Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).*)
 
-(*NOTE: trying out making a nicer viewshift_SEP *)
-Tactic Notation "viewshift_SEP'" uconstr(L) constr(L') :=
-  let i := fresh "i" in freeze i := L; thaw i; viewshift_SEP 0 L'.
-
 (*NOTE: gather_SEP really runs let i := fresh "i" in freeze i := L; thaw i. for any input L *)
 
 
@@ -262,7 +258,28 @@ Proof.
     (* and we can reduce the right hand side! *)
     SPR_inr.
     SPR_recc; SPR_beta.
-    
+
+    (* including loads *)
+    Check step_load.    
+    Set Ltac Debug.
+    lazymatch goal with
+      | |- context[refines_right ?ctx ?expr] => 
+          reshape_expr expr ltac:(fun K e => 
+            replace expr with (fill K e) by (by rewrite ? fill_app);
+            evar (e' : iexp);
+            viewshift_SEP' (refines_right _ _) (IlocCur |-> _) (refines_right ctx (fill K e'));
+            first (
+              go_lower; 
+              eapply (refines_right_pure_r e e' _ _ _ K 1);
+              [apply step_load | auto | auto]
+            );
+            simpl in e';
+            subst e';
+            simpl 
+            )
+      | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+    end.
+
   }
 
   ).
