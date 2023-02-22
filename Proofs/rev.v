@@ -193,6 +193,35 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     rev_list_spec
   ]).
 
+Lemma test ctx IlocCur Iprev c Icur':
+exists v,
+(refines_right ctx
+      (fill
+         [FstCtx;
+          AppRCtx
+            (heap_lang.Rec <> "elem"
+               (heap_lang.Rec <> "rest"
+                  (heap_lang.Rec <> <>
+                     (Val iris.rev_internal <AP> InjR (Val (iLit (LitLoc IlocCur))) <AP> Var "rest") <AP>
+                   Store (Val (iLit (LitLoc IlocCur))) (Pair (Var "elem") (Val Iprev))) <AP>
+                Snd (Load (Val (iLit (LitLoc IlocCur))))))] (Load (Val (iLit (LitLoc IlocCur))))) *
+    IlocCur |-> iPair (iInt c) Icur'
+    |-- (|={⊤}=>
+           refines_right ctx
+             (fill
+                [FstCtx;
+                 AppRCtx
+                   (heap_lang.Rec <> "elem"
+                      (heap_lang.Rec <> "rest"
+                         (heap_lang.Rec <> <>
+                            (Val iris.rev_internal <AP> InjR (Val (iLit (LitLoc IlocCur))) <AP> Var "rest") <AP>
+                          Store (Val (iLit (LitLoc IlocCur))) (Pair (Var "elem") (Val Iprev))) <AP>
+                       Snd (Load (Val (iLit (LitLoc IlocCur))))))] (Val v)) * IlocCur |-> v)).
+Proof.
+  eexists.
+  eapply (ref_right_load _ ctx _ IlocCur fullshare _).
+Admitted.
+
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
@@ -261,20 +290,20 @@ Proof.
 
     (* including loads *)
     Check step_load.    
-    Set Ltac Debug.
+    Check ref_right_load.
     lazymatch goal with
       | |- context[refines_right ?ctx ?expr] => 
           reshape_expr expr ltac:(fun K e => 
             replace expr with (fill K e) by (by rewrite ? fill_app);
-            evar (e' : iexp);
-            viewshift_SEP' (refines_right _ _) (IlocCur |-> _) (refines_right ctx (fill K e'));
+            let v := fresh "v" in evar (v : ival);
+            print_goal;
+            viewshift_SEP' (refines_right ctx _) (IlocCur |-> _) (refines_right ctx (fill K (Val v)) * (IlocCur |-> v))%logic;
             first (
-              go_lower; 
-              eapply (refines_right_pure_r e e' _ _ _ K 1);
-              [apply step_load | auto | auto]
+              unfold v;
+              go_lower;
+              print_goal;
+              simple eapply (ref_right_load _ ctx K IlocCur fullshare _); first auto
             );
-            simpl in e';
-            subst e';
             simpl 
             )
       | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
