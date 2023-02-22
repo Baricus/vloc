@@ -380,6 +380,30 @@ Context `{ref_ctx: refines_ctx}.
     iFrame.
   Qed.
 
+  Lemma ref_right_load E ctx l v:
+    nclose nspace ⊆ E → 
+    (refines_right ctx (Load (Val (LitV (LitLoc l)))) * (l |-> v) 
+     |-- |={E}=> refines_right ctx (of_val v) * (l |-> v))%logic.
+  Proof.
+    intros Hnspace.
+    unfold refines_right.
+    iIntros "[[Rctx Rtp] Rlv]".
+    iPoseProof (step_load with "[Rctx Rtp Rlv]") as "Rstep"; first apply Hnspace.
+    {
+      iFrame "Rctx".
+      iSplitL "Rtp".
+      iApply "Rtp".
+      iApply "Rlv".
+    }
+    iMod "Rstep".
+    iDestruct "Rstep" as "(Rctx & Rtp & Rpt)".
+    iModIntro.
+    iFrame.
+  Qed.
+   
+
+
+
   Lemma step_store E j K l v' e v:
     IntoVal e v →
     nclose nspace ⊆ E →
