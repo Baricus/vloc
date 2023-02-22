@@ -133,7 +133,7 @@ From Vloc Require Import core pure.
   
 (*NOTE: trying out making a nicer viewshift_SEP *)
 #[export] Tactic Notation "viewshift_SEP'" uconstr(a) constr(L') :=
-  let i := fresh "i" in freeze i := a; thaw i; viewshift_SEP 0 L'.
+  let i := fresh "i" in freeze i := a; thaw'' i; viewshift_SEP 0 L'.
 
 #[export] Tactic Notation "viewshift_SEP'" uconstr(a) uconstr(b) constr(L') :=
-  let i := fresh "i" in freeze i := a b; thaw i; viewshift_SEP 0 L'.
+  let i := fresh "i" in freeze i := a b; thaw'' i; viewshift_SEP 0 L'.
