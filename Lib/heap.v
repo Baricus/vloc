@@ -380,10 +380,10 @@ Context `{ref_ctx: refines_ctx}.
     iFrame.
   Qed.
 
-  Lemma ref_right_load E ctx l v:
+  Lemma ref_right_load E ctx K l sh v:
     nclose nspace ⊆ E → 
-    (refines_right ctx (Load (Val (LitV (LitLoc l)))) * (l |-> v) 
-     |-- |={E}=> refines_right ctx (of_val v) * (l |-> v))%logic.
+    (refines_right ctx (fill K (Load (Val (LitV (LitLoc l))))) * (heapS_mapsto sh l v) 
+     |-- |={E}=> refines_right ctx (fill K (of_val v)) * (heapS_mapsto sh l v))%logic.
   Proof.
     intros Hnspace.
     unfold refines_right.
@@ -391,6 +391,7 @@ Context `{ref_ctx: refines_ctx}.
     iPoseProof (step_load with "[Rctx Rtp Rlv]") as "Rstep"; first apply Hnspace.
     {
       iFrame "Rctx".
+      rewrite <- fill_app.
       iSplitL "Rtp".
       iApply "Rtp".
       iApply "Rlv".
@@ -398,13 +399,13 @@ Context `{ref_ctx: refines_ctx}.
     iMod "Rstep".
     iDestruct "Rstep" as "(Rctx & Rtp & Rpt)".
     iModIntro.
+    rewrite <- fill_app.
     iFrame.
   Qed.
    
 
 
-
-  Lemma step_store E j K l v' e v:
+Lemma step_store E j K l v' e v:
     IntoVal e v →
     nclose nspace ⊆ E →
     spec_ctx ∗ (tpool_mapsto j (fill K (Store (Val (LitV (LitLoc l))) e))) ∗ (heapS_mapsto fullshare l v')
