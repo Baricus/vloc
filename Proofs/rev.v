@@ -289,8 +289,49 @@ Proof.
     SPR_recc; SPR_beta.
 
     (* including loads *)
-    Check step_load.    
-    Check ref_right_load.
+    SPR_load IlocCur.
+
+    Ltac step_pure_r_instr tactic :=
+      let e' := fresh "e'" in
+      let Hcond := fresh "Hcond" in
+        lazymatch goal with
+        (* if we have a decision, make it before we try to step further *)
+        | |- context [ bool_decide ?cond ] => 
+            destruct (bool_decide cond) eqn:Hcond;
+            [apply bool_decide_eq_true in Hcond | apply bool_decide_eq_false in Hcond];
+            try contradiction; try lia; 
+            clear Hcond
+        (* anything else we carry on *)
+        | |- ?anything => idtac (* do nothing tactic *)
+        end;
+        (* try to step to the next instruction *)
+      lazymatch goal with
+        | |- context[refines_right ?ctx ?expr] => 
+            reshape_expr expr ltac:(fun K e => 
+              replace expr with (fill K e) by (by rewrite ? fill_app);
+              evar (e' : iexp);
+              print_goal;
+              viewshift_SEP' (refines_right ctx _) (refines_right ctx (fill K e'));
+              idtac "hi!";
+              first (
+                go_lower; 
+                eapply (refines_right_pure_r e e' _ _ _ K 1);
+                [tactic e' | auto | auto]
+              );
+              simpl in e';
+              subst e';
+              simpl 
+              )
+        | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+      end;
+      simpl.
+      unfold iPair.
+
+      Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply (pure_fst _ _)).
+      SPR_fst.
+
+      
+
     lazymatch goal with
       | |- context[refines_right ?ctx ?expr] => 
           reshape_expr expr ltac:(fun K e => 
