@@ -1,4 +1,4 @@
-From Vloc Require Import core pure.
+From Vloc Require Import core pure heap util.
 
 #[local] Ltac try_pures e' := first [
      apply pure_injrc 
@@ -81,8 +81,7 @@ From Vloc Require Import core pure.
         reshape_expr expr ltac:(fun K e => 
           replace expr with (fill K e) by (by rewrite ? fill_app);
           evar (e' : iexp);
-          gather_SEP (refines_right _ _);
-          viewshift_SEP 0 (refines_right ctx (fill K e'));
+          viewshift_SEP' (refines_right ctx _) (refines_right ctx (fill K e'));
           first (
             go_lower; 
             eapply (refines_right_pure_r e e' _ _ _ K 1);
@@ -126,14 +125,22 @@ From Vloc Require Import core pure.
 #[export] Ltac SPR_recc     := step_pure_r_instr  ltac:(fun _ => apply (pure_recc _)).
 
 
-(* helper stuff that isn't entirely related *)
-#[export] Ltac print_goal := match goal with
-                   | |- ?p => idtac "GOAL IS: " p
-                   end.
-  
-(*NOTE: trying out making a nicer viewshift_SEP *)
-#[export] Tactic Notation "viewshift_SEP'" uconstr(a) constr(L') :=
-  let i := fresh "i" in freeze i := a; thaw'' i; viewshift_SEP 0 L'.
-
-#[export] Tactic Notation "viewshift_SEP'" uconstr(a) uconstr(b) constr(L') :=
-  let i := fresh "i" in freeze i := a b; thaw'' i; viewshift_SEP 0 L'.
+(* tactics for heap actions *)
+Ltac SPR_load l := 
+  match goal with
+  | |- context[heapS_mapsto ?sh l ?v] =>
+    match goal with
+      | |- context[refines_right ?ctx ?expr] => 
+        reshape_expr expr ltac:(fun K e => 
+          replace expr with (fill K e) by (by rewrite ? fill_app);
+          viewshift_SEP' (refines_right ctx _) (l |-> _) (refines_right ctx (fill K (Val v)) * (l |-> v))%logic;
+          first (
+            go_lower;
+            simple eapply (ref_right_load _ ctx K l sh _); first auto
+          );
+          simpl 
+          )
+      | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+    end
+  | |- ?anything => fail "Could not find a value that the given location maps to; are you sure this is a location?"
+  end.
