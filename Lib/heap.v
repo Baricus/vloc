@@ -562,4 +562,25 @@ Lemma step_store E j K l v' e v:
     iFrame.
   Qed.
 
+    (*IntoVal e v →*)
+    (*nclose nspace ⊆ E →*)
+    (*spec_ctx ∗ (tpool_mapsto j (fill K (Store (Val (LitV (LitLoc l))) e))) ∗ (heapS_mapsto fullshare l v')*)
+    (*={E}=∗ spec_ctx ∗ (tpool_mapsto j (fill K (Val (LitV LitUnit)))) ∗ (heapS_mapsto fullshare l v).*)
+
+  Lemma ref_right_store E ctx K l e v' v:
+    IntoVal e v →
+    nclose nspace ⊆ E → 
+    (refines_right ctx (fill K (Store (Val (LitV (LitLoc l))) e)) * (heapS_mapsto fullshare l v') 
+     |-- |={E}=> refines_right ctx (fill K (Val (LitV LitUnit))) * (heapS_mapsto fullshare l v))%logic.
+  Proof.
+    iIntros (Hiv Hnspace) "[[Rctx Rtp] Rlv]".
+    unfold refines_right.
+    do 2 rewrite <- fill_app.
+    iPoseProof (step_store with "[$Rctx $Rtp $Rlv]") as "Rstep"; first apply Hnspace.
+    iMod "Rstep".
+    iDestruct "Rstep" as "(Rctx & Rtp & Rpt)".
+    iModIntro.
+    iFrame.
+  Qed.
+
 End heap.
