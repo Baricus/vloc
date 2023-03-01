@@ -100,8 +100,8 @@ From Vloc Require Import core pure heap util.
 #[export] Ltac SPR_injlc    := step_pure_r_instr  ltac:(fun _ => apply pure_injlc).
 #[export] Ltac SPR_unop     := step_pure_r_instr  ltac:(fun _ => apply pure_unop).
 #[export] Ltac SPR_binop    := step_pure_r_instr  ltac:(fun _ => apply pure_binop).
-#[export] Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply pure_fst).
-#[export] Ltac SPR_snd      := step_pure_r_instr  ltac:(fun _ => apply pure_snd).
+#[export] Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply (pure_fst _ _)).
+#[export] Ltac SPR_snd      := step_pure_r_instr  ltac:(fun _ => apply (pure_snd _ _)).
 #[export] Ltac SPR_pairrc   := step_pure_r_instr  ltac:(fun _ => apply pure_pairc).
 
 (* NOTE: If requires that we know the branch we're going down in order to work *)
@@ -126,7 +126,7 @@ From Vloc Require Import core pure heap util.
 
 
 (* tactics for heap actions *)
-Ltac SPR_load l := 
+Ltac SPR_load l ::= 
   match goal with
   | |- context[heapS_mapsto ?sh l ?v] =>
     match goal with
@@ -138,9 +138,11 @@ Ltac SPR_load l :=
             go_lower;
             simple eapply (ref_right_load _ ctx K l sh _); first auto
           );
-          simpl 
+          simpl;
+          (* Needed to transform resulting A * B into the proper list form *)
+          Intros
           )
-      | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+      | |- ?anything => fail 999 "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
     end
   | |- ?anything => fail "Could not find a value that the given location maps to; are you sure this is a location?"
   end.
