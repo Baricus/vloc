@@ -126,7 +126,7 @@ From Vloc Require Import core pure heap util.
 
 
 (* tactics for heap actions *)
-Ltac SPR_load l ::= 
+#[export] Ltac SPR_load l := 
   match goal with
   | |- context[heapS_mapsto ?sh l ?v] =>
     match goal with

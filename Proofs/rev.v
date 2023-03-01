@@ -1,34 +1,51 @@
 (* workaround for not having notation *)
-From iris.heap_lang Require proofmode notation.
-Require compcert.lib.Integers.
-Module iris.
+(*From iris.heap_lang Require proofmode notation.*)
+(*Require compcert.lib.Integers.*)
+(*Module iris.*)
 
-(* used for our modulus *)
-Import compcert.lib.Integers.
-Import proofmode notation.
+(*[> used for our modulus <]*)
+(*Import compcert.lib.Integers.*)
+(*Import proofmode notation.*)
 
-Definition rev_internal : val := 
+(*Definition rev_internal : val := *)
+  (*[> NOTE: there is a difference between λ: and rec:  besides notation! Recursion! <]*)
+  (*rec: "rev_internal" "prev" "cur" :=*)
+    (*match: "cur" with*)
+      (*[> return the new head of the list, the end <]*)
+      (*NONE        => "prev"*)
+      (*[> turn rest to previous and return <]*)
+    (*| SOME "node" => *)
+        (*let: "elem" := Fst !"node" in*)
+        (*let: "rest" := Snd !"node" in*)
+        (*"node" <- ("elem", "prev");;*)
+        (*"rev_internal" (SOME "node") "rest" *)
+    (*end.*)
+
+(*[> NOTE: "rev_internal" (quotes) does not work, but rev_internal does <]*)
+(*Definition iRev : val := λ: "list", (rev_internal NONE "list").*)
+
+(*End iris.*)
+
+Require Import Vloc.Lib.theory.
+Require Import Vloc.CCode.rev.
+
+(* NOTE: don't need a module! *)
+Definition rev_internal : heap_lang.val := 
   (* NOTE: there is a difference between λ: and rec:  besides notation! Recursion! *)
-  rec: "rev_internal" "prev" "cur" :=
+  (rec: "rev_internal" "prev" "cur" :=
     match: "cur" with
       (* return the new head of the list, the end *)
       NONE        => "prev"
       (* turn rest to previous and return *)
     | SOME "node" => 
-        let: "elem" := Fst !"node" in
-        let: "rest" := Snd !"node" in
+        let: "elem" := Fst (!"node") in
+        let: "rest" := Snd (!"node") in
         "node" <- ("elem", "prev");;
         "rev_internal" (SOME "node") "rest" 
-    end.
+    end%Ei).
 
 (* NOTE: "rev_internal" (quotes) does not work, but rev_internal does *)
-Definition iRev : val := λ: "list", (rev_internal NONE "list").
-
-End iris.
-
-Require Import Vloc.Lib.theory.
-Require Import Vloc.CCode.rev.
-
+Definition iRev : heap_lang.val := λ: "list", (rev_internal NONE "list").
 
 #[local] Instance prog_ctx : refines_ctx := { gName := 1; nspace := nroot .@ "test"}.
 
@@ -76,7 +93,7 @@ Definition EquivList σ V I : mpred
 
 
 (* so I can stop seeing so many App constructors *)
-Notation "a <AP> b" := (App a b) (at level 21, left associativity).
+Notation "a <AP> b" := (App a b) (at level 21, left associativity, only parsing).
 
 (*Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).*)
 
@@ -87,8 +104,7 @@ Lemma Equiv_null_l σ Ival :
   EquivList σ nullval Ival |-- EquivList [] nullval Ival.
 Proof.
   destruct σ; auto.
-  (*NOTE: how to do in one step? *)
-  iIntros "[Ri Rv]".
+  (*NOTE: how to do in one step? *) iIntros "[Ri Rv]".
   iDestruct "Rv" as (y) "[[Rnull Rtok] Rrest]".
   fold Vlist.
   iDestruct (field_at_ptr_neq_null with "Rnull") as "%Hcontra".
@@ -164,7 +180,7 @@ Definition rev_list_internal_spec :=
       PARAMS(Vprev; Vcur)
       GLOBALS()
       SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur ;
-            refines_right ctx ((of_val iris.rev_internal) <AP> (Val Iprev) <AP> (Val Icur)))
+            refines_right ctx ((of_val rev_internal) <AP> (Val Iprev) <AP> (Val Icur)))
     POST [ tptr node_t ]
       EX Vres: val, EX Ires: ival, EX σ': list Z,
       PROP()
@@ -192,35 +208,6 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     rev_list_internal_spec ;
     rev_list_spec
   ]).
-
-Lemma test ctx IlocCur Iprev c Icur':
-exists v,
-(refines_right ctx
-      (fill
-         [FstCtx;
-          AppRCtx
-            (heap_lang.Rec <> "elem"
-               (heap_lang.Rec <> "rest"
-                  (heap_lang.Rec <> <>
-                     (Val iris.rev_internal <AP> InjR (Val (iLit (LitLoc IlocCur))) <AP> Var "rest") <AP>
-                   Store (Val (iLit (LitLoc IlocCur))) (Pair (Var "elem") (Val Iprev))) <AP>
-                Snd (Load (Val (iLit (LitLoc IlocCur))))))] (Load (Val (iLit (LitLoc IlocCur))))) *
-    IlocCur |-> iPair (iInt c) Icur'
-    |-- (|={⊤}=>
-           refines_right ctx
-             (fill
-                [FstCtx;
-                 AppRCtx
-                   (heap_lang.Rec <> "elem"
-                      (heap_lang.Rec <> "rest"
-                         (heap_lang.Rec <> <>
-                            (Val iris.rev_internal <AP> InjR (Val (iLit (LitLoc IlocCur))) <AP> Var "rest") <AP>
-                          Store (Val (iLit (LitLoc IlocCur))) (Pair (Var "elem") (Val Iprev))) <AP>
-                       Snd (Load (Val (iLit (LitLoc IlocCur))))))] (Val v)) * IlocCur |-> v)).
-Proof.
-  eexists.
-  eapply (ref_right_load _ ctx _ IlocCur fullshare _).
-Admitted.
 
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
@@ -278,8 +265,6 @@ Proof.
     sep_apply (Equiv_not_null Lcur); [left; auto|].
     Intros c Lcur'; clear Lcur.
     sep_apply (Equiv_pop c Lcur').
-    (*NOTE: why do I get an emp here? I can't pull stuff out without getting it *)
-    (* Pulling out the location just rips the pure hypothesis out as well *)
     Intros Vcur' Icur' IlocCur.
     autorewrite with norm.
     rename H into HIlocCur; rewrite ! HIlocCur.
@@ -290,6 +275,15 @@ Proof.
 
     (* including loads *)
     SPR_load IlocCur.
+    SPR_fst.
+    SPR_recc.
+    SPR_beta.
+    SPR_load IlocCur.
+    SPR_snd.
+    SPR_recc.
+    SPR_beta.
+    (* To get rid of the %Ei tag *)
+    Open Scope iris_expr_scope.
 
     Ltac step_pure_r_instr tactic :=
       let e' := fresh "e'" in
@@ -310,9 +304,7 @@ Proof.
             reshape_expr expr ltac:(fun K e => 
               replace expr with (fill K e) by (by rewrite ? fill_app);
               evar (e' : iexp);
-              print_goal;
               viewshift_SEP' (refines_right ctx _) (refines_right ctx (fill K e'));
-              idtac "hi!";
               first (
                 go_lower; 
                 eapply (refines_right_pure_r e e' _ _ _ K 1);
@@ -325,31 +317,13 @@ Proof.
         | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
       end;
       simpl.
-      unfold iPair.
+    Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply (pure_fst _ _)).
+    Check (pure_fst _ _).
+    SPR_fst.
 
-      Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply (pure_fst _ _)).
-      SPR_fst.
 
-      
 
-    lazymatch goal with
-      | |- context[refines_right ?ctx ?expr] => 
-          reshape_expr expr ltac:(fun K e => 
-            replace expr with (fill K e) by (by rewrite ? fill_app);
-            let v := fresh "v" in evar (v : ival);
-            print_goal;
-            viewshift_SEP' (refines_right ctx _) (IlocCur |-> _) (refines_right ctx (fill K (Val v)) * (IlocCur |-> v))%logic;
-            first (
-              unfold v;
-              go_lower;
-              print_goal;
-              simple eapply (ref_right_load _ ctx K IlocCur fullshare _); first auto
-            );
-            simpl 
-            )
-      | |- ?anything => fail "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
-    end.
-
+    
   }
 
   ).

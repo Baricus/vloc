@@ -1,1 +1,1 @@
-From Vloc Require Export core pure tactics heap util.
+From Vloc Require Export heaplang_notation core pure tactics heap util.
