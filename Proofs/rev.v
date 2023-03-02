@@ -259,6 +259,9 @@ Proof.
   {
     (* If it's not null, then... *)
 
+    (* NOTE: To get rid of the %Ei tag *)
+    (*Open Scope iris_expr_scope.*)
+
     (* we have an element in BOTH lists *)
     sep_apply (Equiv_not_null Lcur); [left; auto|].
     Intros c Lcur'; clear Lcur.
@@ -281,51 +284,17 @@ Proof.
     SPR_recc.
     SPR_beta.
 
-    Ltac SPR_store l vnew := 
-      match goal with
-      | |- context[heapS_mapsto ?sh l ?v] =>
-          match goal with
-          | |- context[refines_right ?ctx ?expr] => 
-              reshape_expr expr ltac:(fun K e => 
-              replace expr with (fill K e) by (by rewrite ? fill_app);
-              viewshift_SEP' (refines_right ctx _) (l |-> v) (refines_right ctx (fill K (Val (LitV LitUnit))) * (l |-> vnew))%logic;
-                  first (
-                  go_lower;
-                  simple eapply (ref_right_store _ ctx K l _ v vnew)
-                  );
-                  simpl;
-                  (* Needed to transform resulting A * B into the proper list form *)
-                  Intros
-              )
-          | |- ?anything => fail 999 "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
-          end
-      | |- ?anything => fail "Could not find a value that the given location maps to; are you sure this is a location?"
-      end.
-      Check ref_right_store.
-      SPR_store IlocCur (iInt c, Iprev)%Ei.
+    SPR_pairc. (* I hate this :( (also I needed the underscores again) *)
+    SPR_store IlocCur (#c, Iprev)%V. (* NOTE: how to get rid of the %V here? *)
 
-Admitted.
-Lemma test ctx (IlocCur : loc) (Icur' : ival) c Iprev : ((refines_right ctx
-        (fill [StoreRCtx (iLit IlocCur); AppRCtx (λ: <>, rev_internal (InjR (iLit (LitLoc IlocCur))) Icur')%Ei]
-          (iInt c, Iprev)%Ei)) * IlocCur |-> iPair (iInt c) Icur'
-    |-- (|={⊤}=>
-           (refines_right ctx (fill [StoreRCtx (iLit (LitLoc IlocCur)); AppRCtx (λ: <>, rev_internal (InjR (iLit IlocCur)) Icur')%Ei] (#())) *
-           IlocCur |-> iPair (iInt c) Icur'))).
-Proof.
-  Check ref_right_store.
-  simple eapply (ref_right_store _ ctx [StoreRCtx (iLit IlocCur); AppRCtx (λ: <>, rev_internal (InjR (iLit IlocCur)) Icur')%Ei] IlocCur _ _).
-  iIntros "R".
-  iPoseProof (ref_right_store with "[R]") as "test"; first auto.
-  {
-    iApply "R".
+    (* now we step *)
+    SPR_recc; SPR_beta.
 
-  }
+    (* run the right side to the same point now *)
+    forward_if 
 
 
-    SPR_store IlocCur.
 
-      (* To get rid of the %Ei tag *)
-    Open Scope iris_expr_scope.
 
 
 

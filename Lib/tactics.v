@@ -102,7 +102,7 @@ From Vloc Require Import core pure heap util.
 #[export] Ltac SPR_binop    := step_pure_r_instr  ltac:(fun _ => apply pure_binop).
 #[export] Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply (pure_fst _ _)).
 #[export] Ltac SPR_snd      := step_pure_r_instr  ltac:(fun _ => apply (pure_snd _ _)).
-#[export] Ltac SPR_pairrc   := step_pure_r_instr  ltac:(fun _ => apply pure_pairc).
+#[export] Ltac SPR_pairc   := step_pure_r_instr  ltac:(fun _ => apply (pure_pairc _ _)).
 
 (* NOTE: If requires that we know the branch we're going down in order to work *)
 #[export] Ltac SPR_if_true  := step_pure_r_instr  ltac:(fun e' =>
@@ -146,3 +146,25 @@ From Vloc Require Import core pure heap util.
     end
   | |- ?anything => fail "Could not find a value that the given location maps to; are you sure this is a location?"
   end.
+
+#[export] Ltac SPR_store l vnew := 
+      match goal with
+      | |- context[heapS_mapsto ?sh l ?vcur] =>
+          match goal with
+          | |- context[refines_right ?ctx ?expr] => 
+              reshape_expr expr ltac:(fun K e => 
+              replace expr with (fill K e) by (by rewrite ? fill_app);
+              viewshift_SEP' (refines_right ctx _) (l |-> vcur) (refines_right ctx (fill K (Val (LitV LitUnit))) * (l |-> vnew))%logic;
+                  first (
+                  go_lower;
+                  simple eapply (ref_right_store _ ctx K l _ vcur%V vnew%V);
+                  [try apply into_val | auto]
+                  );
+                  simpl;
+                  (* Needed to transform resulting A * B into the proper list form *)
+                  Intros
+              )
+          | |- ?anything => fail 999 "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+          end
+      | |- ?anything => fail "Could not find a value that the given location maps to; are you sure this is a location?"
+      end.
