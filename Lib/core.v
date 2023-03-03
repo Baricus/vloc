@@ -145,7 +145,7 @@ Qed.
 (* heapS_mapsto
     An assertion that there is a value v in the heap at location l 
 *)
-Definition heapS_mapsto (s : share) (l : loc) (v: ival) :=
+Definition heapS_mapsto (s : share) (l : loc) (v: ival) : mpred :=
   UsrGhost (to_tpool [], {[ l := Some (s, (Some v)) ]} ).
 
 Definition spec_inv (c : cfg (heap_lang)) : mpred := 
@@ -162,7 +162,7 @@ Definition spec_ctx : mpred :=
 (* tpool_mapsto
     an assertion that the expression e is thread j's (numbered as nat's) 
 *)
-Definition tpool_mapsto (j : nat) (e : iexp) := 
+Definition tpool_mapsto (j : nat) (e : iexp) : mpred := 
   UsrGhost ({[j := Some e]}, to_heap gmap_empty).
 
 (* ref_id
@@ -173,7 +173,7 @@ Record ref_id : Set := RefId { tp_id : nat;  tp_ctx : list ectx_item }.
 Definition add_to_ctx id (ctx : list ectx_item) : ref_id :=
   RefId (tp_id id) (ctx ++ tp_ctx id).
 
-Definition refines_right (r : ref_id) (e : iexp) := 
+Definition refines_right (r : ref_id) (e : iexp) : mpred := 
   (spec_ctx * tpool_mapsto (tp_id r) (fill (tp_ctx r) e))%logic.
 
 (* refines_right_add_ctx

@@ -96,8 +96,8 @@ From Vloc Require Import core pure heap util.
   simpl.
 
 
-#[export] Ltac SPR_injrc    := step_pure_r_instr  ltac:(fun _ => apply pure_injrc).
-#[export] Ltac SPR_injlc    := step_pure_r_instr  ltac:(fun _ => apply pure_injlc).
+#[export] Ltac SPR_injrc    := step_pure_r_instr  ltac:(fun _ => apply (pure_injrc _)).
+#[export] Ltac SPR_injlc    := step_pure_r_instr  ltac:(fun _ => apply (pure_injlc _)).
 #[export] Ltac SPR_unop     := step_pure_r_instr  ltac:(fun _ => apply pure_unop).
 #[export] Ltac SPR_binop    := step_pure_r_instr  ltac:(fun _ => apply pure_binop).
 #[export] Ltac SPR_fst      := step_pure_r_instr  ltac:(fun _ => apply (pure_fst _ _)).

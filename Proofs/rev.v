@@ -70,7 +70,7 @@ Fixpoint Vlist (sigma: list Z) (p: val) : mpred :=
     (* NOTE: should malloc_token be here? -> Probably!  It makes sense here. *)
     data_at Ews node_t (Vint (Int.repr h),y) p  *  malloc_token Ews node_t p * Vlist hs y
  | nil => 
-     (!! (p = nullval) && emp)%logic  (* NOTE: I used to have an emp here; why? -> Allows binding logic to empty memory *)
+    ⌜ (p = nullval) ⌝  (* NOTE: I used to have an emp here; why? -> Allows binding logic to empty memory *)
  end.
 
 (* now an iris list *)
@@ -84,7 +84,7 @@ Definition iPair l r := (PairV l r).
 Fixpoint Ilist (sigma : list Z) v : mpred :=
   match sigma with
   | x :: xs => ∃ (p : loc), ⌜ v = InjRV (iLit (LitLoc p)) ⌝ ∗ ∃ (v' : ival), p |-> (iPair (iInt x) v') ∗ Ilist xs v'
-  | [] => (!! (v = InjLV (LitV LitUnit)) && emp)%logic
+  | [] => ⌜ (v = InjLV (LitV LitUnit)) ⌝
   end.
 
 (* and we can compare them *)
@@ -123,9 +123,9 @@ Proof.
 Qed.
 
 Lemma Equiv_empty Vval Ival :
-  EquivList [] Vval Ival |-- EquivList [] Vval Ival * (!! (Vval = nullval) && emp) * (!! (Ival = (InjLV (iLit (iUnit)))) && emp).
+  EquivList [] Vval Ival |-- (!! (Vval = nullval) && !! (Ival = (InjLV (iLit (iUnit)))) && EquivList [] Vval Ival).
 Proof.
-  iIntros "[[%Ri _] [%Rv _]]".
+  iIntros "[%Ri %Rv]".
   auto.
 Qed.
 
@@ -137,11 +137,11 @@ Proof.
   (* exhaustive check of all the cases *)
   intros H; destruct H as [HV | HI]; destruct σ as [| s σ'].
   {
-    iIntros "[_ [%Contra _]]".
+    iIntros "[_ %Contra]".
     contradiction.
   }
   2:{
-    iIntros "[[%Contra _] _]".
+    iIntros "[%Contra _]".
     contradiction.
   }
   1,2:
@@ -153,10 +153,9 @@ Qed.
 
 Lemma Equiv_pop s σ' Vval Ival:
   EquivList (s :: σ') Vval Ival |-- 
-      EX Vval', EX Ival', EX p:loc, (
-      (data_at Ews node_t (Vint (Int.repr s),Vval') Vval * malloc_token Ews node_t Vval) *
-      (!! (Ival = InjRV (iLit (LitLoc p))) && emp) * p |-> (iPair (iInt s) Ival') *
-      EquivList σ' Vval' Ival').
+      (EX Vval', EX Ival', EX p, (
+      (!! (Ival = InjRV (iLit (LitLoc p)) /\ Vval ≠ nullval) && (data_at Ews node_t (Vint (Int.repr s),Vval') Vval * malloc_token Ews node_t Vval) * p |-> (iPair (iInt s) Ival') *
+      EquivList σ' Vval' Ival'))).
 Proof.
   iIntros  "[RI RV]".
   simpl.
@@ -165,11 +164,59 @@ Proof.
   iExists Vval'.
   iExists Ival'.
   iExists p.
-  (*NOTE: where does this true come from? *)
-  iFrame.
+  iSplitR "Ri' Rv'".
+  2: iFrame.
+  iSplitR "RIpts"; auto.
+  iSplit; last iFrame.
+  iSplit; auto.
+  iPoseProof (field_at_ptr_neq_null with "Rvdata") as "%H".
+  iPureIntro.
+  intro Hcontra.
+  subst Vval.
+  assert (ptr_eq nullval nullval = true); auto.
+  apply ptr_eq_True.
+  apply mapsto_memory_block.is_pointer_or_null_nullval.
+  destruct H.
+  rewrite H0.
   auto.
 Qed.
+
+Lemma EquivList_push v v' i i' l s σ:
+  ((i = InjRV (iLit (LitLoc l))) /\ (v ≠ nullval)) -> (EquivList σ v' i' * data_at Ews node_t (Vint (Int.repr s), v') v * malloc_token Ews node_t v * l |-> (iPair (iInt s) i')) |-- EquivList (s :: σ) v i.
+Proof.
+  iIntros (Hnnull) "[[[[Ri Rv] Rdata] Rmalloc] Rpts]".
+  destruct Hnnull as [Hi Hv].
+  unfold EquivList.
+  iSplitL "Rpts Ri".
+  - iExists l; fold Ilist.
+    iSplitR; auto.
+    iExists i'.
+    iFrame.
+  - iExists v'; fold Vlist.
+    iFrame.
+Qed.
   
+Lemma EquivList_local_facts:
+  forall sigma v i,
+   EquivList sigma v i |--
+       !! (is_pointer_or_null v /\ (v=nullval <-> sigma=nil) /\ (i=(InjLV (#())) <-> sigma=nil)).
+Proof.
+  iIntros (σ v i) "EqList".
+  destruct σ.
+  - iDestruct "EqList" as "[%Ilist %Vlist]".
+    subst v; subst i.
+    iPureIntro.
+    split; first apply mapsto_memory_block.is_pointer_or_null_nullval.
+    split; split; auto.
+  - iDestruct (Equiv_pop with "EqList") as (v' i' p) "[[[[%Hi %Hv] [Hdata Hmalloc]] ptsTo] EqList']".
+    subst i.
+    iDestruct (data_at_valid_ptr with "Hdata") as "Hvalid"; auto.
+    { rewrite sizeof_Tstruct. simpl; lia. } (* NOTE: This is a weird goal.  Why does it come up? *)
+    iSplitL.
+    { destruct v; auto. }
+    iPureIntro; split; split; intro; try contradiction; try list_solve.
+Qed.
+#[export] Hint Resolve EquivList_local_facts : saturate_local.
 
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
@@ -235,12 +282,11 @@ Proof.
     SPR_recc.
     SPR_beta.
 
-    evar (e : iexp).
     (* We cannot get past this if statement in this case *)
     forward_if (
       PROP (False)
-      LOCAL (temp _prev Vprev; temp _cur nullval)
-      SEP (refines_right ctx e; EquivList Lprev Vprev Iprev; EquivList [] nullval (InjLV (LitV LitUnit)))
+      LOCAL()
+      SEP()
     ).
     {
       forward.
@@ -267,7 +313,6 @@ Proof.
     Intros c Lcur'; clear Lcur.
     sep_apply (Equiv_pop c Lcur').
     Intros Vcur' Icur' IlocCur.
-    autorewrite with norm.
     rename H into HIlocCur; rewrite ! HIlocCur.
 
     (* and we can reduce the right hand side! *)
@@ -285,20 +330,51 @@ Proof.
     SPR_beta.
 
     SPR_pairc. (* I hate this :( (also I needed the underscores again) *)
+    unfold iPair.
     SPR_store IlocCur (#c, Iprev)%V. (* NOTE: how to get rid of the %V here? *)
 
     (* now we step *)
     SPR_recc; SPR_beta.
 
     (* run the right side to the same point now *)
-    forward_if 
+
+    (* This if statement cannot be entered *)
+    forward_if.
+    { contradiction. }
+
+    forward.
+    forward.
 
 
 
+    (* rebuild our list *)
+    viewshift_SEP' (IlocCur |-> _) (data_at _ _ _ _) (malloc_token _ _ _) (EquivList Lprev _ _) 
+        (EquivList (c :: Lprev) Vcur Icur).
+    {
+      entailer!.
+      iIntros "[[[Rpt Rdta] Rmlc] Reqt]".
+      iModIntro.
+      iApply EquivList_push; auto.
+      iFrame.
+    }
 
+    (* Almost forgot this step! *)
+    SPR_injrc.
 
+    forward_call (gv, ctx, Vcur, Vcur', Icur, Icur', Lcur', (c :: Lprev)).
+    { 
+      rewrite HIlocCur. 
+      cancel.
+    }
 
-    
+    Intros ret.
+    destruct ret as [p lret]; destruct p as [vret iret].
+    forward.
+
+    Exists vret.
+    Exists iret.
+    Exists lret.
+    entailer!.
   }
+Qed.
 
-  ).

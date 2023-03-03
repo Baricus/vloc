@@ -11,3 +11,9 @@ From Vloc Require Import core.
 
 #[export] Tactic Notation "viewshift_SEP'" uconstr(a) uconstr(b) uconstr(L') :=
   let i := fresh "i" in freeze i := a b; thaw'' i; viewshift_SEP 0 L'.
+
+#[export] Tactic Notation "viewshift_SEP'" uconstr(a) uconstr(b) uconstr(c) uconstr(L') :=
+  let i := fresh "i" in freeze i := a b c; thaw'' i; viewshift_SEP 0 L'.
+
+#[export] Tactic Notation "viewshift_SEP'" uconstr(a) uconstr(b) uconstr(c) uconstr(d) uconstr(L') :=
+  let i := fresh "i" in freeze i := a b c d; thaw'' i; viewshift_SEP 0 L'.
