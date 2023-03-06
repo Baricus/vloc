@@ -48,11 +48,6 @@ Fixpoint Vlist (sigma: list Z) (p: val) : mpred :=
  end.
 
 (* now an iris list *)
-(* NOTE: should these be notations? *)
-(*Definition iLit x := (LitV x).*)
-(*Definition iUnit  := (LitUnit).*)
-(*Definition iInt x := iLit (LitInt x).*)
-(*Definition iPair l r := (PairV l r).*)
 
 (* NOTE: we don't want an iris heap here directly, we want our simulated one. *)
 Fixpoint Ilist (sigma : list Z) v : mpred :=
@@ -64,11 +59,6 @@ Fixpoint Ilist (sigma : list Z) v : mpred :=
 (* and we can compare them *)
 Definition EquivList σ V I : mpred
   := (Ilist σ I * Vlist σ V)%logic.
-
-(* so I can stop seeing so many App constructors *)
-(*Notation "a <AP> b" := (App a b) (at level 21, left associativity, only parsing).*)
-
-(*Notation "'RR' a b" := (refines_right a b) (at level 20, only printing).*)
 
 (*NOTE: gather_SEP really runs let i := fresh "i" in freeze i := L; thaw i. for any input L *)
 
@@ -95,7 +85,7 @@ Lemma Equiv_null_r σ Vval :
 Proof.
   destruct σ; auto.
   iIntros "[Ril Rvl]".
-  iDestruct "Ril" as (p) "[%Hcontra RUselessButICantDrop]".
+  iDestruct "Ril" as (p) "[%Hcontra RUselessButICantDrop]"; fold Ilist.
   discriminate.
 Qed.
 
@@ -268,8 +258,7 @@ Proof.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
-  SPR_beta.
-  fold rev_internal. (* do remember to fold this! Things are messy otherwise *)
+  SPR_beta; fold rev_internal. (* do remember to fold this! Things are messy otherwise *)
   SPR_recc; SPR_beta.
   (* either cur is null or not *)
   destruct (eq_dec Vcur nullval); subst.
