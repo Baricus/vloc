@@ -97,6 +97,15 @@ Proof.
   auto.
 Qed.
 
+(* Null is the same as an empty list *)
+Lemma Equiv_emp_nullList:
+  emp |-- EquivList [] nullval (InjLV (#())).
+Proof.
+  iIntros "_".
+  auto.
+Qed.
+
+
 (* for the non-empty cases *)
 
 (* If either value is not null, then both aren't null and the list has a head *)
@@ -359,4 +368,25 @@ Proof.
     Exists lret.
     entailer!.
   }
+Qed.
+
+
+Lemma rev_list_lemma : semax_body Vprog Gprog f_rev_list rev_list_spec.
+Proof.
+  start_function; unfold iRev.
+  SPR_beta.
+  SPR_injlc.
+  forward_call (gv, ctx, nullval, Vhead, (InjLV (#()))%V, Ihead, σ, ([] : list Z)).
+  { iIntros "Re". iDestruct (Equiv_emp_nullList with "Re") as "R". iVST; cancel. }
+
+  Intros tuple.
+  destruct tuple as [[v' i'] σ'].
+  simpl.
+  forward.
+  Exists v'.
+  Exists i'.
+  Exists σ'.
+  entailer!.
+  unfold ectxi_language.of_val; simpl.
+  cancel.
 Qed.
