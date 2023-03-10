@@ -47,8 +47,15 @@ node * rev_list(node *head) {
 node * empty_node() {
 	node *ptr = malloc(sizeof(node));
 
+	if (ptr == NULL) {
+		exit(-1);
+	}
+
+	ptr->val = 0;
+	ptr->next = NULL;
+
 	// this should be fun to verify
-	return ptr == NULL ? exit(-1), ptr : ptr;
+	return ptr;
 }
 
 /*

@@ -263,6 +263,28 @@ Context `{ref_ctx: refines_ctx}.
     intros. assert (i = 0) as -> by lia. by rewrite loc_add_0.
   Qed.
 
+
+  Lemma ref_right_alloc E ctx K e v:
+    IntoVal e v →
+    nclose nspace ⊆ E →
+    refines_right ctx (fill K (AllocN (Val (LitV (LitInt 1%Z))) e))
+    |-- |={E}=> EX l, refines_right ctx (fill K (Val (LitV (LitLoc l)))) * l |-> v.
+  Proof.
+    intros HIV Hnspace.
+    iIntros "[Rctx Rtp]".
+    rewrite <- fill_app.
+    iDestruct (step_alloc with "[Rctx Rtp]") as "Rstepped"; first apply Hnspace.
+    { iFrame. }
+    iMod "Rstepped".
+    iDestruct "Rstepped" as (l) "[Rctx [Rtp Rpt]]".
+    iModIntro.
+    iExists l.
+    iFrame.
+    rewrite <- fill_app.
+    auto.
+  Qed.
+
+  
   Lemma step_load E j K l hSh v:
     nclose nspace ⊆ E → 
     spec_ctx ∗ (tpool_mapsto j (fill K (Load (Val (LitV (LitLoc l)))))) ∗ (heapS_mapsto hSh l v)

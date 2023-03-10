@@ -154,7 +154,7 @@ From Vloc Require Import core pure heap util.
           | |- context[refines_right ?ctx ?expr] => 
               reshape_expr expr ltac:(fun K e => 
               replace expr with (fill K e) by (by rewrite ? fill_app);
-              viewshift_SEP' (refines_right ctx _) (l |-> vcur) (refines_right ctx (fill K (Val (LitV LitUnit))) * (l |-> vnew))%logic;
+              viewshift_SEP' (refines_right ctx _) (l |-> vcur) (refines_right ctx (fill K (Val (LitV LitUnit))) * (l |-> vnew%V))%logic;
                   first (
                   go_lower;
                   simple eapply (ref_right_store _ ctx K l _ vcur%V vnew%V);

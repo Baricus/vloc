@@ -256,9 +256,31 @@ Definition rev_list_spec :=
       SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
 
 
+(* While this isn't really needed, I wanted to test out allocation, so we'll verify this too *)
+
+(* heap lang version of an empty node *)
+Definition empty_node : heap_lang.val :=
+  λ: "_", (let: "l" := (Alloc ((#0), InjLV (#()))) in (SOME "l")%V)%Ei.
+
+Definition empty_node_spec :=
+  DECLARE _empty_node
+    WITH gv: globals, ctx: ref_id
+    PRE []
+      PROP()
+      PARAMS()
+      GLOBALS(gv)
+      SEP(mem_mgr gv; refines_right ctx ((of_val empty_node) (#())))
+    POST [tptr node_t ]
+      EX V: val, EX I : ival,
+      PROP()
+      RETURN(V)
+      SEP(mem_mgr gv; EquivList [0]%Z V I; (refines_right ctx (ectxi_language.of_val I))).
+
+
 Definition Gprog : funspecs := ltac:(with_library prog [ 
     rev_list_internal_spec ;
-    rev_list_spec
+    rev_list_spec ;
+    empty_node_spec
   ]).
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
@@ -343,15 +365,16 @@ Proof.
     forward.
 
     (* we added a new element to the front of Lprev *)
-    viewshift_SEP' (IlocCur |-> _) (data_at _ _ _ _) (malloc_token _ _ _) (EquivList Lprev _ _) 
-        (EquivList (c :: Lprev) Vcur (InjRV (#IlocCur))%V).
-    {
-      entailer!.
-      iIntros "[[[Rpt Rdta] Rmlc] Reqt]".
-      iModIntro.
-      iApply EquivList_push; auto.
-      iFrame.
-    }
+    sep_apply (EquivList_push Vcur Vprev (InjRV (#IlocCur))); auto.
+    (*viewshift_SEP' (IlocCur |-> _) (data_at _ _ _ _) (malloc_token _ _ _) (EquivList Lprev _ _) *)
+        (*(EquivList (c :: Lprev) Vcur (InjRV (#IlocCur))%V).*)
+    (*{*)
+      (*entailer!.*)
+      (*iIntros "[[[Rpt Rdta] Rmlc] Reqt]".*)
+      (*iModIntro.*)
+      (*iApply EquivList_push; auto.*)
+      (*iFrame.*)
+    (*}*)
 
     (* Almost forgot this step! *)
     SPR_injrc.
@@ -376,7 +399,7 @@ Proof.
   start_function; unfold iRev.
   SPR_beta.
   SPR_injlc.
-  forward_call (gv, ctx, nullval, Vhead, (InjLV (#()))%V, Ihead, σ, ([] : list Z)).
+  forward_call (gv, ctx, nullval, Vhead, (InjLV (#())), Ihead, σ, ([] : list Z)).
   { iIntros "Re". iDestruct (Equiv_emp_nullList with "Re") as "R". iVST; cancel. }
 
   Intros tuple.
@@ -389,4 +412,111 @@ Proof.
   entailer!.
   unfold ectxi_language.of_val; simpl.
   cancel.
+Qed.
+
+
+Lemma empty_node_lemma : semax_body Vprog Gprog f_empty_node empty_node_spec.
+Proof.
+  start_function.
+  unfold empty_node.
+
+  (* allocate the C node *)
+  forward_call (node_t, gv).
+  Intros ptr.
+
+  (* allocate the heap_lang node *)
+  SPR_beta.
+  SPR_pairc.
+  Ltac SPR_alloc := 
+          match goal with
+          | |- context[refines_right ?ctx ?expr] => 
+                reshape_expr expr ltac:(fun K e =>
+                  match e with 
+                  | context[(ref (Val ?v)%V)%Ei] =>
+                      replace expr with (fill K e) by (by rewrite ? fill_app);
+                      viewshift_SEP' (refines_right ctx _) (EX l, (refines_right ctx (fill K (Val (LitV (LitLoc l))))) * (l |-> v));
+                      first (
+                        go_lower;
+                        simple eapply ref_right_alloc; [try apply into_val | auto]
+                      );
+                      simpl
+                  end
+              )
+          | |- ?anything => fail 999 "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+          end.
+  SPR_alloc.
+  Intros l.
+
+  SPR_recc.
+  SPR_beta.
+
+  (* now we go through the if statement *)
+  destruct (eq_dec ptr nullval).
+  {
+    (* If we have null, we can prove false since exit *)
+    forward_if (PROP(False) LOCAL() SEP()).
+    {
+      subst ptr.
+      forward_call.
+      contradiction.
+    }
+    contradiction.
+  }
+
+  {
+    (* If we don't have null, we continue *)
+    rewrite if_false; auto.
+    evar (e : iexp).
+    evar (v : ival).
+    forward_if (
+      PROP()
+      LOCAL(temp _ptr ptr; gvars gv)
+      SEP(refines_right ctx e; (l |-> v); mem_mgr gv; malloc_token Ews node_t ptr; data_at_ Ews node_t ptr)
+    ); subst e v.
+    {
+      (* We can't enter the if *)
+      contradiction.
+    }
+    {
+      (* Skipping it just gives us what we already know *)
+      forward.
+      entailer!.
+      apply derives_refl.
+    }
+
+    rename n into HnotNull.
+
+    (* Now we initialize memory *)
+    do 2 forward.
+
+    (* Don't forget to build our list *)
+    (* NOTE: this doesn't seem to like sep_apply *)
+    viewshift_SEP' (malloc_token _ _ _) (EquivList [] nullval (InjLV (#())) * malloc_token Ews node_t ptr)%logic.
+    {
+      go_lower.
+      iIntros "Rmalloc"; iFrame.
+      iApply Equiv_emp_nullList.
+      iModIntro.
+      auto.
+    }
+    Intros.
+    SPR_injrc.
+
+    viewshift_SEP' (EquivList [] _ _) (malloc_token _ _ _) (data_at _ _ _ _) (_ |-> _) (EquivList [0]%Z ptr (InjRV (#l))%V).
+    {
+      go_lower.
+      iIntros "[[Rm Ra] Rpt]".
+      iApply EquivList_push; auto.
+      iModIntro.
+      iFrame.
+    }
+
+    (* and return *)
+    forward.
+
+    Exists ptr.
+    Exists (InjRV (#l)).
+    simpl.
+    entailer!.
+  }
 Qed.
