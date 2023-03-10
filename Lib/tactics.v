@@ -1,4 +1,4 @@
-From Vloc Require Import core pure heap util.
+From Vloc Require Import core pure heap util heaplang_notation.
 
 #[local] Ltac try_pures e' := first [
      apply pure_injrc 
@@ -168,3 +168,22 @@ From Vloc Require Import core pure heap util.
           end
       | |- ?anything => fail "Could not find a value that the given location maps to; are you sure this is a location?"
       end.
+
+#[export] Ltac SPR_alloc := 
+          match goal with
+          | |- context[refines_right ?ctx ?expr] => 
+                reshape_expr expr ltac:(fun K e =>
+                  match e with 
+                  (* This needs to be allocating a value; so we match on "ref" (Val v) *)
+                  | context[(ref (Val ?v)%V)%Ei] =>
+                      replace expr with (fill K e) by (by rewrite ? fill_app);
+                      viewshift_SEP' (refines_right ctx _) (EX l, (refines_right ctx (fill K (Val (LitV (LitLoc l))))) * (l |-> v));
+                      first (
+                        go_lower;
+                        simple eapply ref_right_alloc; [try apply into_val | auto]
+                      );
+                      simpl
+                  end
+              )
+          | |- ?anything => fail 999 "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
+          end.

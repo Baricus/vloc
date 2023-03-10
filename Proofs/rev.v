@@ -427,23 +427,7 @@ Proof.
   (* allocate the heap_lang node *)
   SPR_beta.
   SPR_pairc.
-  Ltac SPR_alloc := 
-          match goal with
-          | |- context[refines_right ?ctx ?expr] => 
-                reshape_expr expr ltac:(fun K e =>
-                  match e with 
-                  | context[(ref (Val ?v)%V)%Ei] =>
-                      replace expr with (fill K e) by (by rewrite ? fill_app);
-                      viewshift_SEP' (refines_right ctx _) (EX l, (refines_right ctx (fill K (Val (LitV (LitLoc l))))) * (l |-> v));
-                      first (
-                        go_lower;
-                        simple eapply ref_right_alloc; [try apply into_val | auto]
-                      );
-                      simpl
-                  end
-              )
-          | |- ?anything => fail 999 "Could not isolate refines_right ctx [expr]. A definition may need to be unfolded!"
-          end.
+
   SPR_alloc.
   Intros l.
 
@@ -466,8 +450,7 @@ Proof.
   {
     (* If we don't have null, we continue *)
     rewrite if_false; auto.
-    evar (e : iexp).
-    evar (v : ival).
+    evar (e : iexp); evar (v : ival).
     forward_if (
       PROP()
       LOCAL(temp _ptr ptr; gvars gv)
@@ -478,7 +461,7 @@ Proof.
       contradiction.
     }
     {
-      (* Skipping it just gives us what we already know *)
+      (* Skipping it just gives us what we already know in this case *)
       forward.
       entailer!.
       apply derives_refl.
