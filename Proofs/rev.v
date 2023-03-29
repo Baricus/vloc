@@ -440,7 +440,6 @@ Proof.
     (* If we have null, we can prove false since exit *)
     forward_if (PROP(False) LOCAL() SEP()).
     {
-      subst ptr.
       forward_call.
       contradiction.
     }
@@ -450,7 +449,7 @@ Proof.
   {
     (* If we don't have null, we continue *)
     rewrite if_false; auto.
-    evar (e : iexp); evar (v : ival).
+    evar (e : iexp); evar (v : ival). (* so we don't rewrite them all *)
     forward_if (
       PROP()
       LOCAL(temp _ptr ptr; gvars gv)
@@ -479,12 +478,12 @@ Proof.
       go_lower.
       iIntros "Rmalloc"; iFrame.
       iApply Equiv_emp_nullList.
-      iModIntro.
       auto.
     }
     Intros.
     SPR_injrc.
 
+    (* also add the one element to it *)
     viewshift_SEP' (EquivList [] _ _) (malloc_token _ _ _) (data_at _ _ _ _) (_ |-> _) (EquivList [0]%Z ptr (InjRV (#l))%V).
     {
       go_lower.
