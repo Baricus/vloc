@@ -5,12 +5,20 @@ From Vloc Require Import theory.
     - semantic relationship between C and HeapLang 
  *)
 
-Open Scope bi_scope.
 
-Axiom syn_relate : mpred.
+Context `{!heapGS Σ}.
 
-Lemma syn_relate P e v Q P' c :
-  syn_relate →
-  {{ P }} e {{ v, Q }} 
+Axiom syn_relate : iProp Σ -> mpred -> Prop.
 
+Lemma syn_relate_sound P e v Q P' Q' varspecs funspecs compspecs func ident argT retT:
+  syn_relate P P' →
+  syn_relate Q Q' →
+  {{{ P }}} e {{{ RET v; Q }}} →
+  (* -> VST triple *)
+  (*semax compspecs Espec Δ *)
+  semax_body varspecs funspecs func (
+    ident,
+    NDmk_funspec (argT, retT) 
+  )
+  
   .
