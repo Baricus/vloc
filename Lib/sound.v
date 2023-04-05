@@ -29,6 +29,7 @@ Axiom syn_relate : iProp Σ -> mpred -> Prop.
 Lemma syn_relate_sound P e v Q P' Q' varspecs funspecs compspecs func ident argTs retT tx:
   syn_relate P P' →
   syn_relate Q Q' →
+  (* HeapLang triple *)
   {{{ P }}} e {{{ RET v; Q }}} →
   (* -> VST triple *)
   (*semax compspecs Espec Δ *)
