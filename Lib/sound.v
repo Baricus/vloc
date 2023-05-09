@@ -8,6 +8,8 @@ From Vloc Require Import theory.
 
 Context `{!heapGS Σ}.
 
+Context `{compspecs}.
+
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
 
 (*Definition semax_body*)
@@ -26,7 +28,13 @@ Axiom syn_relate : iProp Σ -> mpred -> Prop.
   (*(NDmk_funspec (pair (cons u .. (cons v nil) ..) tz) cc_default tx*)
      (*(fun x => P) (fun x => Q)) : funspec_scope (default interpretation)*)
 
-Lemma syn_relate_sound P e v Q P' Q' varspecs funspecs compspecs func ident argTs retT tx:
+(* Currently:
+    - No restrictions on P, Q, P', Q'
+      - it should have something!
+      - Do we just have a 2nd triple for the VSTLoc version?
+      - A needs to show up in the final triple (or just in the refinement triple?)
+*)
+Lemma syn_relate_sound (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpred) varspecs funspecs func ident argTs retT with_type:
   syn_relate P P' →
   syn_relate Q Q' →
   (* HeapLang triple *)
@@ -35,7 +43,8 @@ Lemma syn_relate_sound P e v Q P' Q' varspecs funspecs compspecs func ident argT
   (*semax compspecs Espec Δ *)
   semax_body varspecs funspecs func (
     ident,
-    NDmk_funspec (argTs, retT) cc_default tx (fun x y => P') (fun x y => Q') 
+    (* x => WITH clauses, y => environment (args/return) *)
+    NDmk_funspec (argTs, retT) cc_default with_type (fun x y => P') (fun x y => Q') 
   )
   
   .
