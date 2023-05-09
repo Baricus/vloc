@@ -62,7 +62,7 @@ Definition fspec :=
     PROP()
     PARAMS(Vint n)
     GLOBALS()
-    SEP(refines_right ctx (App (Val iris.factI) (Val (LitV (LitInt (Int.unsigned n))))))
+    SEP(refines_right ctx (iris.factI (# Int.unsigned n)))
   POST [ tuint ] 
     EX v' : ival, EX v : val,
     PROP(nat_relate v v')

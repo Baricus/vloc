@@ -5,12 +5,26 @@ From Vloc Require Import theory.
     - semantic relationship between C and HeapLang 
  *)
 
+(* Third approach:
+    - use A as the relationship directly
+ *)
+
 
 Context `{!heapGS Σ}.
 
 Context `{compspecs}.
 
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
+
+Definition refines varspecs funspecs func ident argTs retT with_type (P : ffunc (fconst argsEnviron) fidentity mpred) A :=
+  semax_body varspecs funspecs func
+  (
+    ident, 
+    mk_funspec (argTs, retT) cc_default with_type 
+      (fun x y => P) 
+      (fun x y => (fun Vres Ires => (sepcon (A Vres Ires) (fun ctx => refines_right ctx (Ires)))))
+  ).
+
 
 (*Definition semax_body*)
    (*(V: varspecs) (G: funspecs) {C: compspecs} (f: function) (spec: ident * funspec): Prop :=*)
@@ -34,7 +48,12 @@ Axiom syn_relate : iProp Σ -> mpred -> Prop.
       - Do we just have a 2nd triple for the VSTLoc version?
       - A needs to show up in the final triple (or just in the refinement triple?)
 *)
-Lemma syn_relate_sound (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpred) varspecs funspecs func ident argTs retT with_type:
+Lemma syn_relate_sound 
+  varspecs funspecs func ident argTs retT with_type
+  (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpred):
+  (* VSTLoC Triple *)
+  
+  (* relationship between structures *)
   syn_relate P P' →
   syn_relate Q Q' →
   (* HeapLang triple *)
@@ -46,5 +65,4 @@ Lemma syn_relate_sound (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpre
     (* x => WITH clauses, y => environment (args/return) *)
     NDmk_funspec (argTs, retT) cc_default with_type (fun x y => P') (fun x y => Q') 
   )
-  
   .
