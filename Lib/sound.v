@@ -24,7 +24,6 @@ Definition refines varspecs funspecs func ident argTs retT with_type (P : with_t
   semax_body (C:=cs) varspecs funspecs func
   (
     ident, 
-    (*TODO: emp -> refines_right ctx *)
     NDmk_funspec (argTs, retT) cc_default with_type 
     (fun a b => P a b * 
       (∀ j : ref_id,
@@ -34,11 +33,7 @@ Definition refines varspecs funspecs func ident argTs retT with_type (P : with_t
       end
     ))%logic
     (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (Ires)))))
-    (*mk_funspec (argTs, retT) cc_default with_type *)
-      (*(fun x y => P) *)
-      (*(fun x y => ())*)
   ).
-
 
 (*Definition refines_def (E : coPset)*)
   (*(e : expr) (e'k : rhs_t) (A : lrel Σ) : iProp Σ :=*)
