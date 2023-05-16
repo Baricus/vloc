@@ -1,5 +1,7 @@
 From Vloc Require Import theory.
 
+From VST Require Import floyd.proofauto.
+
 (* Two different approaches we could take:
     - syntactical relation between predicates 
     - semantic relationship between C and HeapLang 
@@ -12,19 +14,42 @@ From Vloc Require Import theory.
 
 Context `{!heapGS Σ}.
 
-Context `{compspecs}.
+Context {cs: compspecs}.
+
+Context `{refines_ctx}.
 
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
 
-Definition refines varspecs funspecs func ident argTs retT with_type (P : ffunc (fconst argsEnviron) fidentity mpred) A :=
-  semax_body varspecs funspecs func
+Definition refines varspecs funspecs func ident argTs retT with_type (P : with_type -> argsEnviron -> mpred) (ie : iexp) (rhs : sum iexp ref_id) (A : expr -> iexp -> mpred) :=
+  semax_body (C:=cs) varspecs funspecs func
   (
     ident, 
-    mk_funspec (argTs, retT) cc_default with_type 
-      (fun x y => P) 
-      (fun x y => (fun Vres Ires => (sepcon (A Vres Ires) (fun ctx => refines_right ctx (Ires)))))
+    (*TODO: emp -> refines_right ctx *)
+    NDmk_funspec (argTs, retT) cc_default with_type 
+    (fun a b => P a b * 
+      (∀ j : ref_id,
+      match rhs with
+      | inl e' => refines_right j e'
+      | inr k => !! (j = k) && emp
+      end
+    ))%logic
+    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (Ires)))))
+    (*mk_funspec (argTs, retT) cc_default with_type *)
+      (*(fun x y => P) *)
+      (*(fun x y => ())*)
   ).
 
+
+(*Definition refines_def (E : coPset)*)
+  (*(e : expr) (e'k : rhs_t) (A : lrel Σ) : iProp Σ :=*)
+  (*(∀ j : ref_id,*)
+  (*match e'k with*)
+    (*[> if it is an expression, it refines it to the right <]*)
+  (*| inl e' => refines_right j e'*)
+      (*[> if it is not, so it is a reference #, they are equal (pure fact) <]*)
+  (*| inr k  => ⌜j = k⌝*)
+  (*end -∗*)
+ (*|={E,⊤}=> WP e {{ v, ∃ v', refines_right j (of_val v') ∗ A v v' }})%I.*)
 
 (*Definition semax_body*)
    (*(V: varspecs) (G: funspecs) {C: compspecs} (f: function) (spec: ident * funspec): Prop :=*)
