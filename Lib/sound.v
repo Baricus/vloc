@@ -20,10 +20,7 @@ Context `{refines_ctx}.
 
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
 
-Definition refines varspecs funspecs func ident argTs retT with_type (P : with_type -> argsEnviron -> mpred) (ie : iexp) (rhs : sum iexp ref_id) (A : expr -> iexp -> mpred) :=
-  semax_body (C:=cs) varspecs funspecs func
-  (
-    ident, 
+Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
     NDmk_funspec (argTs, retT) cc_default with_type 
     (fun a b => P a b * 
       (∀ j : ref_id,
@@ -32,8 +29,42 @@ Definition refines varspecs funspecs func ident argTs retT with_type (P : with_t
       | inr k => !! (j = k) && emp
       end
     ))%logic
-    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (Ires)))))
+    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (Ires))))).
+
+Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
+  refines (cons t .. (cons t' nil) ..) rtyp
+  (prod g1 (.. (prod gn ()) ..))
+    spec
+  rhs
+  a
   ).
+
+(*
+Definition refines_semax varspecs funspecs func ident argTs retT with_type (P : with_type -> argsEnviron -> mpred) (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
+  semax_body (C:=cs) varspecs funspecs func
+  (
+    ident, 
+    refines argTs retT with_type P rhs A
+  ).
+*)
+
+Require Import CCode.rev.
+Require Import Proofs.rev.
+
+(*Unset Printing Notations.*)
+Definition test_spec := 
+  GIVEN (globals * ref_id * val * val * ival * ival * list Z * list Z)
+  PRE [tptr node_t ; tptr node_t]
+  (fun '(gv, ctx, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
+      PROP()
+      PARAMS(Vprev; Vcur)
+      GLOBALS()
+      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur)
+    )
+  POST [tptr node_t]
+  RHS(inl (of_val rev_internal))
+  A(fun v i => EX σ, EquivList σ v i)
+  .
 
 (*Definition refines_def (E : coPset)*)
   (*(e : expr) (e'k : rhs_t) (A : lrel Σ) : iProp Σ :=*)
