@@ -222,11 +222,17 @@ Proof.
 Qed.
 #[export] Hint Resolve EquivList_local_facts : saturate_local.
 
+Check SEPx.
 
+(* replace P with 2 args ->
+    one is black box precondition (prop + local)
+    one is list of mpreds (add on before SEPx)
+*)
+Search Lift argsEnviron.
 Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
     NDmk_funspec (argTs, retT) cc_default with_type 
-    (fun a b => P a b * 
-      (∀ j : ref_id,
+    (fun a => P a * 
+      liftx (H:=LiftAEnviron _) (∀ j : ref_id,
       match rhs with
       | inl e' => refines_right j e'
       | inr k => !! (j = k) && emp
@@ -234,13 +240,15 @@ Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred) 
     ))%logic
     (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (of_val Ires))))).
 
+Locate "WITH".
+
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
   (prod g1 (.. (prod gn ()) ..))
     spec
   rhs
   a
-  ).
+  ) (only parsing).
 
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
@@ -373,6 +381,12 @@ Ltac start_function1 :=
                                 | (a, b) => _
                                 end * _)%logic _ _ => 
         destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _ (match ?p with
+                                | (a, b) => _
+                                end * _) * _)%logic _ _ => 
+        destruct p as [a b]
       | |- semax _ (match ?p with
                     | (a, b) => _
                     end eq_refl * _)%logic _ _ => 
@@ -397,10 +411,38 @@ Ltac start_function1 :=
             end
       end; try start_func_convert_precondition).
 
+Ltac start_function2 :=
+  first
+  [ erewrite compute_close_precondition_eq; [  | reflexivity | reflexivity ]
+  | rewrite close_precondition_main ].
+
+Lemma PROP_PARAMS_SEP_cons F P1 P2 P3: 
+  PROPx P1 (PARAMSx P2 (SEPx (F :: P3))) = (liftx (H:=LiftAEnviron _) F * PROPx P1 (PARAMSx P2 (SEPx P3)))%logic.
+Proof.
+  change (SEPx (F :: P3)) with (liftx (H:=LiftAEnviron _) F * SEPx P3)%logic.
+  unfold PROPx, LOCALx.
+  unfold_lift; extensionality rho.
+  unfold local, lift1.
+  simpl.
+  apply pred_ext.
+  + normalize.
+    iIntros "[Ra [Rb Rc]]".
+    iFrame.
+  + normalize.
+    iIntros "[Ra [Rb Rc]]".
+    iFrame.
+Qed.
+
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
+  unfold rev_list_internal_spec.
+  unfold refines.
   start_function1.
-  start_function.
+  rewrite (sepcon_comm (PROP () PARAMS (_ ; _) SEP (_ ; _))).
+  rewrite <- (PROP_PARAMS_SEP_cons (∀ j : ref_id, refines_right j rev_internal) [] [Vprev;Vcur] [EquivList Lprev Vprev Iprev; EquivList Lcur Vcur Icur]).
+  
+  start_function2.
+
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)

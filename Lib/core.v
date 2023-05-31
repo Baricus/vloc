@@ -187,17 +187,6 @@ Proof.
   auto.
 Qed.
 
-Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
-    NDmk_funspec (argTs, retT) cc_default with_type 
-    (fun a b => P a b * 
-      (∀ j : ref_id,
-      match rhs with
-      | inl e' => refines_right j e'
-      | inr k => !! (j = k) && emp
-      end
-    ))%logic
-    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (of_val Ires))))).
-
 End refinement.
 
 (* hints have to go here since they don't export otherwise *)
@@ -210,12 +199,4 @@ End refinement.
 
 (* TODO: figure out if this is actually exported? My bet is ... no *)
 #[export] Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
-
-#[export] Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
-  refines (cons t .. (cons t' nil) ..) rtyp
-  (prod g1 (.. (prod gn ()) ..))
-    spec
-  rhs
-  a
-  ).
 
