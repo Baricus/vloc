@@ -223,8 +223,42 @@ Qed.
 #[export] Hint Resolve EquivList_local_facts : saturate_local.
 
 
+Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
+    NDmk_funspec (argTs, retT) cc_default with_type 
+    (fun a b => P a b * 
+      (∀ j : ref_id,
+      match rhs with
+      | inl e' => refines_right j e'
+      | inr k => !! (j = k) && emp
+      end
+    ))%logic
+    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (of_val Ires))))).
+
+Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
+  refines (cons t .. (cons t' nil) ..) rtyp
+  (prod g1 (.. (prod gn ()) ..))
+    spec
+  rhs
+  a
+  ).
+
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
+  DECLARE _rev_list_internal
+  GIVEN (globals * ref_id * val * val * ival * ival * list Z * list Z)
+  PRE [tptr node_t ; tptr node_t]
+  (fun '(gv, ctx, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
+      PROP()
+      PARAMS(Vprev; Vcur)
+      GLOBALS()
+      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur)
+    )
+  POST [tptr node_t]
+  RHS(inl (of_val rev_internal))
+  A(fun v i => EX σ, EquivList σ v i)
+  .
+  
+Definition rev_list_internal_spec_old :=
   DECLARE _rev_list_internal
     WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival, Lcur: list Z, Lprev: list Z
     PRE [ tptr node_t, tptr node_t ]
@@ -238,6 +272,7 @@ Definition rev_list_internal_spec :=
       PROP()
       RETURN(Vres)
       SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
+
 
 (* the wrapper to just reverse a list *)
 Definition rev_list_spec :=
@@ -283,8 +318,88 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     empty_node_spec
   ]).
 
+Ltac start_function1 :=
+  leaf_function;
+   lazymatch goal with
+   | |- semax_body ?V ?G ?F ?spec =>
+         check_normalized F; function_body_unsupported_features F;
+          (let s := fresh "spec" in
+           pose (s := spec); hnf in s; cbn zeta in s;
+            repeat
+             lazymatch goal with
+             | s:=(_, NDmk_funspec _ _ _ _ _):_ |- _ => fail
+             | s:=(_, mk_funspec _ _ _ _ _ _ _):_ |- _ => fail
+             | s:=(_, ?a _ _ _ _):_ |- _ => unfold a in s
+             | s:=(_, ?a _ _ _):_ |- _ => unfold a in s
+             | s:=(_, ?a _ _):_ |- _ => unfold a in s
+             | s:=(_, ?a _):_ |- _ => unfold a in s
+             | s:=(_, ?a):_ |- _ => unfold a in s
+             end;
+            lazymatch goal with
+            | s:=(_, WITH _ : globals PRE [ ] main_pre _ _ _ POST [tint] _):_
+              |- _ => idtac
+            | s:=?spec':_ |- _ => check_canonical_funspec spec'
+            end; change (semax_body V G F s); subst s; 
+            unfold NDmk_funspec')
+   end;
+   (let DependedTypeList := fresh "DependedTypeList" in
+    unfold NDmk_funspec;
+     match goal with
+     | |- semax_body _ _ _ (_, mk_funspec _ _ _ ?Pre _ _ _) =>
+           split3; [ check_parameter_types' | check_return_type |  ];
+            match Pre with
+            | λ _, convertPre _ _ (λ i, _) =>
+                intros Espec DependedTypeList i
+            | λ _ x, match _ with
+                     | (a, b) => _
+                     end => intros Espec DependedTypeList [a b]
+            | λ _ i, _ => intros Espec DependedTypeList i
+            end; simpl fn_body; simpl fn_params; simpl fn_return
+     end;
+     try
+      match goal with
+      | |- semax _ (λ rho, (?A rho * ?B rho)%logic) _ _ =>
+            change (λ rho, (?A rho * ?B rho)%logic) with (A * B)%logic
+      end; simpl _functor in *; simpl dependent_type_functor_rec; clear
+     DependedTypeList; rewrite_old_main_pre;
+     repeat
+      match goal with
+      | |- semax _ (match ?p with
+                    | (a, b) => _
+                    end * _)%logic _ _ => destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _ match ?p with
+                                | (a, b) => _
+                                end * _)%logic _ _ => 
+        destruct p as [a b]
+      | |- semax _ (match ?p with
+                    | (a, b) => _
+                    end eq_refl * _)%logic _ _ => 
+        destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _ (match ?p with
+                                 | (a, b) => _
+                                 end eq_refl) * _)%logic _ _ =>
+            destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _
+             (λ ae,
+                !! (length ae.2 = ?A) &&
+                ?B (make_args ?C ae.2 (mkEnviron ae.1 _ _))) * _)%logic _ _
+        =>
+            match B with
+            | match ?p with
+              | (a, b) => _
+              end => destruct p as [a b]
+            end
+      end; try start_func_convert_precondition).
+
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
+  start_function1.
   start_function.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
