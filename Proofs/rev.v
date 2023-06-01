@@ -228,19 +228,19 @@ Qed.
     one is list of mpreds (add on before SEPx)
 *)
 Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
-    NDmk_funspec (argTs, retT) cc_default with_type 
-    (fun a => P a * 
-      liftx (H:=LiftAEnviron _) (∀ j : ref_id,
+    NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
+    (fun a => P (fst a) * 
+      liftx (H:=LiftAEnviron _) (
       match rhs with
-      | inl e' => refines_right j e'
-      | inr k => !! (j = k) && emp
+      | inl e' => refines_right (snd a) e'
+      | inr k => !! ((snd a) = k) && emp
       end
     ))%logic
     (
-    fun _ =>
+    fun a =>
     PROP()
     LOCAL()
-    SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (of_val Ires))))
+    SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (refines_right (snd a) (of_val Ires))))
     )
     .
 
@@ -255,9 +255,9 @@ Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'R
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
   DECLARE _rev_list_internal
-  GIVEN (globals * ref_id * val * val * ival * ival * list Z * list Z)
+  GIVEN (globals * val * val * ival * ival * list Z * list Z)
   PRE [tptr node_t ; tptr node_t]
-  (fun '(gv, ctx, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
+  (fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
       PROP()
       PARAMS(Vprev; Vcur)
       GLOBALS()
@@ -431,10 +431,14 @@ Ltac start_refinement spec :=
   unfold spec;
   unfold refines;
   start_function1_mod; 
+  repeat match goal with
+  | [H : (?w * ref_id) |- ?b] => destruct H as [a ctx]
+  end;
   rewrite (sepcon_comm (PROP () PARAMS (_ ; _) SEP (_ ; _)));
   rewrite <- (PROP_PARAMS_GLOBALS_SEP_cons);
   start_function2;
-  start_function3.
+  start_function3;
+  simpl.
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
