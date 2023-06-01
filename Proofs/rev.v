@@ -222,13 +222,11 @@ Proof.
 Qed.
 #[export] Hint Resolve EquivList_local_facts : saturate_local.
 
-Check SEPx.
 
 (* replace P with 2 args ->
     one is black box precondition (prop + local)
     one is list of mpreds (add on before SEPx)
 *)
-Search Lift argsEnviron.
 Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
     NDmk_funspec (argTs, retT) cc_default with_type 
     (fun a => P a * 
@@ -238,9 +236,13 @@ Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred) 
       | inr k => !! (j = k) && emp
       end
     ))%logic
-    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (of_val Ires))))).
-
-Locate "WITH".
+    (
+    fun _ =>
+    PROP()
+    LOCAL()
+    SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (of_val Ires))))
+    )
+    .
 
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
@@ -500,7 +502,7 @@ Proof.
     SPR_recc.
     SPR_beta.
 
-    SPR_pairc. (* I hate this :( (also I needed the underscores again) *)
+    SPR_pairc. (* I hate this :( *)
     SPR_store IlocCur (#c, Iprev)%V. (* NOTE: how to get rid of the %V here? -> needed for notation to fire *)
 
     (* now we step *)
