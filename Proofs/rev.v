@@ -326,7 +326,7 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     empty_node_spec
   ]).
 
-Ltac start_function1 :=
+Ltac start_function1_mod :=
   leaf_function;
    lazymatch goal with
    | |- semax_body ?V ?G ?F ?spec =>
@@ -411,38 +411,32 @@ Ltac start_function1 :=
             end
       end; try start_func_convert_precondition).
 
-Ltac start_function2 :=
-  first
-  [ erewrite compute_close_precondition_eq; [  | reflexivity | reflexivity ]
-  | rewrite close_precondition_main ].
-
-Lemma PROP_PARAMS_SEP_cons F P1 P2 P3: 
-  PROPx P1 (PARAMSx P2 (SEPx (F :: P3))) = (liftx (H:=LiftAEnviron _) F * PROPx P1 (PARAMSx P2 (SEPx P3)))%logic.
+Lemma PROP_PARAMS_GLOBALS_SEP_cons F P1 P2 P3 P4: 
+  PROPx P1 (PARAMSx P2 (GLOBALSx P3 (SEPx (F :: P4)))) = (liftx (H:=LiftAEnviron _) F * PROPx P1 (PARAMSx P2 (GLOBALSx P3 (SEPx P4))))%logic.
 Proof.
-  change (SEPx (F :: P3)) with (liftx (H:=LiftAEnviron _) F * SEPx P3)%logic.
-  unfold PROPx, LOCALx.
+  change (SEPx (F :: P4)) with (liftx (H:=LiftAEnviron _) F * SEPx P4)%logic.
+  unfold PROPx, GLOBALSx, LOCALx.
   unfold_lift; extensionality rho.
   unfold local, lift1.
   simpl.
-  apply pred_ext.
-  + normalize.
-    iIntros "[Ra [Rb Rc]]".
-    iFrame.
-  + normalize.
-    iIntros "[Ra [Rb Rc]]".
+  apply pred_ext;
+    normalize;
+    iIntros "[Ra [Rb [Rc Rd]]]";
     iFrame.
 Qed.
 
+Ltac start_refinement spec :=
+  unfold spec;
+  unfold refines;
+  start_function1_mod; 
+  rewrite (sepcon_comm (PROP () PARAMS (_ ; _) SEP (_ ; _)));
+  rewrite <- (PROP_PARAMS_GLOBALS_SEP_cons);
+  start_function2;
+  start_function3.
+
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
-  unfold rev_list_internal_spec.
-  unfold refines.
-  start_function1.
-  rewrite (sepcon_comm (PROP () PARAMS (_ ; _) SEP (_ ; _))).
-  rewrite <- (PROP_PARAMS_SEP_cons (∀ j : ref_id, refines_right j rev_internal) [] [Vprev;Vcur] [EquivList Lprev Vprev Iprev; EquivList Lcur Vcur Icur]).
-  
-  start_function2.
-
+  start_refinement rev_list_internal_spec.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
