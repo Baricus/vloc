@@ -227,20 +227,20 @@ Qed.
     one is black box precondition (prop + local)
     one is list of mpreds (add on before SEPx)
 *)
-Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
+Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : with_type -> sum iexp ref_id) (A : val -> ival -> mpred) :=
     NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
-    (fun a => P (fst a) * 
+    (fun '(w_typ, ctx) => P w_typ * 
       liftx (H:=LiftAEnviron _) (
-      match rhs with
-      | inl e' => refines_right (snd a) e'
-      | inr k => !! ((snd a) = k) && emp
+      match rhs w_typ with
+      | inl e' => refines_right ctx e'
+      | inr k => !! (ctx = k) && emp
       end
     ))%logic
     (
-    fun a =>
+    fun '(w_typ, ctx) =>
     PROP()
     LOCAL()
-    SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (refines_right (snd a) (of_val Ires))))
+    SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (refines_right ctx (of_val Ires))))
     )
     .
 
@@ -264,7 +264,7 @@ Definition rev_list_internal_spec :=
       SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur)
     )
   POST [tptr node_t]
-  RHS(inl (of_val rev_internal))
+  RHS(fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => inl (of_val rev_internal Iprev Icur))
   A(fun v i => EX σ, EquivList σ v i)
   .
   
@@ -470,9 +470,10 @@ Proof.
     ).
     {
       forward.
+      Exists Vprev.
+      Exists Iprev.
       iIntros "[[ReqNull RrefR] ReqPrev]".
-      iExists Vprev.
-      iExists Iprev.
+      iFrame; iSplitR ""; auto.
       iExists Lprev.
       iFrame.
       auto.
