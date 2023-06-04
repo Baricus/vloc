@@ -44,7 +44,7 @@ Fixpoint Vlist (sigma: list Z) (p: val) : mpred :=
     (* NOTE: should malloc_token be here? -> Probably!  It makes sense here. *)
     data_at Ews node_t (Vint (Int.repr h),y) p  *  malloc_token Ews node_t p * Vlist hs y
  | nil => 
-    ⌜ (p = nullval) ⌝  (* NOTE: I used to have an emp here; why? -> Allows binding logic to empty memory *)
+    (!! (p = nullval) && emp)%logic
  end.
 
 (* now an iris list *)
@@ -53,7 +53,7 @@ Fixpoint Vlist (sigma: list Z) (p: val) : mpred :=
 Fixpoint Ilist (sigma : list Z) v : mpred :=
   match sigma with
   | x :: xs => ∃ (p : loc), ⌜ v = InjRV (#p) ⌝ ∗ ∃ (v' : ival), p |-> ((#x), v')%V ∗ Ilist xs v'
-  | [] => ⌜ (v = InjLV (LitV LitUnit)) ⌝
+  | [] => (!! (v = InjLV (LitV LitUnit)) && emp)%logic
   end.
 
 (* and we can compare them *)
@@ -93,7 +93,7 @@ Qed.
 Lemma Equiv_empty Vval Ival :
   EquivList [] Vval Ival |-- (!! (Vval = nullval) && !! (Ival = (InjLV (#()))) && EquivList [] Vval Ival).
 Proof.
-  iIntros "[%Ri %Rv]".
+  iIntros "[[%Ri _] [%Rv _]]".
   auto.
 Qed.
 
@@ -116,11 +116,11 @@ Proof.
   (* exhaustive check of all the cases *)
   intros H; destruct H as [HV | HI]; destruct σ as [| s σ'].
   {
-    iIntros "[_ %Contra]".
+    iIntros "[_ [%Contra _]]".
     contradiction.
   }
   2:{
-    iIntros "[%Contra _]".
+    iIntros "[[%Contra _] _]".
     contradiction.
   }
   1,2:
@@ -207,7 +207,7 @@ Lemma EquivList_local_facts σ v i:
 Proof.
   iIntros "EqList".
   destruct σ.
-  - iDestruct "EqList" as "[%Ilist %Vlist]".
+  - iDestruct "EqList" as "[[%Ilist _] [%Vlist _]]".
     subst v; subst i.
     iPureIntro.
     split; first apply mapsto_memory_block.is_pointer_or_null_nullval. (* I hope I never apply this lemma again *)
@@ -255,7 +255,7 @@ Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'R
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
   DECLARE _rev_list_internal
-  GIVEN (globals * val * val * ival * ival * list Z * list Z)
+  GIVEN (globals * val * val * heap_lang.val * heap_lang.val * list Z * list Z)
   PRE [tptr node_t ; tptr node_t]
   (fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
       PROP()
@@ -443,6 +443,7 @@ Ltac start_refinement spec :=
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
   start_refinement rev_list_internal_spec.
+  (*start_function.*)
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
@@ -470,13 +471,12 @@ Proof.
     ).
     {
       forward.
-      Exists Vprev.
-      Exists Iprev.
-      iIntros "[[ReqNull RrefR] ReqPrev]".
-      iFrame; iSplitR ""; auto.
+      iIntros "[[ReqNull _] ReqPrev]".
+      iExists Vprev.
+      iExists Iprev.
+      iSplitR "ReqNull"; iFrame.
       iExists Lprev.
       iFrame.
-      auto.
     }
     {
       (* Null != Null *)
@@ -538,7 +538,7 @@ Proof.
     SPR_injrc.
 
     (* If Ei is open here, this will break; I think it conflicts *)
-    forward_call (gv, ctx, Vcur, Vcur', (InjRV (#IlocCur))%V, Icur', Lcur', (c :: Lprev)).
+    forward_call (gv, Vcur, Vcur', (InjRV (#IlocCur))%V, Icur', Lcur', (c :: Lprev), (), ctx).
 
     Intros ret.
     destruct ret as [p lret]; destruct p as [vret iret].
