@@ -227,6 +227,7 @@ Qed.
     one is black box precondition (prop + local)
     one is list of mpreds (add on before SEPx)
 *)
+(*
 Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : with_type -> sum iexp ref_id) (A : val -> ival -> mpred) :=
     NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
     (fun '(w_typ, ctx) => P w_typ * 
@@ -237,12 +238,43 @@ Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred) 
       end
     ))%logic
     (
-    fun '(w_typ, ctx) =>
+    fun '(_, ctx) =>
     PROP()
     LOCAL()
     SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (refines_right ctx (of_val Ires))))
     )
     .
+
+Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
+  refines (cons t .. (cons t' nil) ..) rtyp
+  (prod g1 (.. (prod gn ()) ..))
+    spec
+  rhs
+  a
+  ) (only parsing).
+ *)
+
+
+Definition refines argTs retT with_type propL paramsL globalsL sepL (rhs : with_type -> sum iexp ref_id) (A : val -> ival -> mpred) :=
+  NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
+    (fun '(wth_vals, ctx) =>
+      PROPx (propL wth_vals) (PARAMSx (paramsL wth_vals) (GLOBALSx (globalsL wth_vals) (SEPx
+      (cons 
+        (match rhs wth_vals with
+         | inl e' => refines_right ctx e'
+         | inr k => !! (ctx = k) && emp
+         end
+        )%logic 
+        (sepL wth_vals))
+      )))
+    ) 
+    (fun '(_, ctx) =>
+      PROP()
+      LOCAL()
+      SEP(EX Vres, EX Ires, ((A Vres Ires) * (refines_right ctx (of_val Ires))))
+    )
+  .
+
 
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
