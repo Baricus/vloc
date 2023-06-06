@@ -278,6 +278,15 @@ Definition refines argTs retT with_type (pieces : with_type -> (_ * _ * _ * _ * 
     )
   .
 
+(* Test notation *)
+Notation "'ARGS' ( a1 * .. * an ) 'NAMED' ( n1 , nn ) body" := (
+   (prod a1 (.. (prod an ()) ..))
+   (fun tuple =>
+        match tuple with
+        | (pair n1 nn) => body
+        end
+   )) (only parsing, n1 closed binder, nn closed binder, at level 0).
+
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
   (prod g1 (.. (prod gn ()) ..))
