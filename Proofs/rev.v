@@ -269,9 +269,10 @@ Definition refines argTs retT with_type propL paramsL globalsL sepL (rhs : with_
       ))))
     ) 
     (fun '(_, ctx) =>
+      EX Vres, EX Ires, 
       PROP()
-      LOCAL()
-      SEP(EX Vres, EX Ires, ((A Vres Ires) * (refines_right ctx (of_val Ires))))
+      RETURN(Vres)
+      SEP(((A Vres Ires) * (refines_right ctx (of_val Ires))))
     )
   .
 
@@ -494,10 +495,18 @@ Ltac start_refinement spec :=
   start_function3;
   simpl.
 
+Ltac start_function2 :=
+  first
+  [ setoid_rewrite compute_close_precondition_eq; [  | reflexivity | reflexivity ]
+  | rewrite close_precondition_main ].
+      
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
   unfold rev_list_internal_spec, refines.
-  start_function.
+  start_function1.
+  setoid_rewrite compute_close_precondition_eq.
+  2:reflexivity.
+  2:reflexivity.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
