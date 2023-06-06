@@ -520,7 +520,7 @@ Proof.
   unfold rev_list_internal_spec, refines.
   (* Either the original or modified version have the same behavior *)
   (*start_function1_mod.*)
-  start_function1_mod.
+  start_function1.
   setoid_rewrite compute_close_precondition_eq.
   2:reflexivity.
   2:reflexivity.
