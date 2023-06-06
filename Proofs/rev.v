@@ -290,17 +290,15 @@ Definition rev_list_internal_spec :=
   DECLARE _rev_list_internal
   GIVEN (globals * val * val * heap_lang.val * heap_lang.val * list Z * list Z)
   PRE [tptr node_t ; tptr node_t]
-  PROP((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
-          []) )
-  PARAMS((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
-          [Vprev; Vcur]))
-  GLOBALS((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
-          []))
-  SEP((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
-       [EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur]))
+  (fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => (
+   (* Prop Params Globals Sep Rhs *)
+          [],
+          [Vprev; Vcur],
+          [],
+          [EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur],
+          inl (of_val rev_internal Iprev Icur)))
   POST [tptr node_t]
-  RHS((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
-         inl (of_val rev_internal Iprev Icur)))
+
   A(fun v i => EX σ, EquivList σ v i)
   .
 
@@ -502,7 +500,6 @@ Proof.
   unfold rev_list_internal_spec, refines.
   start_function1.
   setoid_rewrite compute_close_precondition_eq.
-  2:reflexivity.
   2:reflexivity.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
