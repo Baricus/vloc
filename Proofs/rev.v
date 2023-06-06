@@ -278,20 +278,29 @@ Definition refines argTs retT with_type (pieces : with_type -> (_ * _ * _ * _ * 
     )
   .
 
-(* Test notation as an example of the matching problem *)
-(*
-Notation "'ARGS' ( a1 * .. * an ) 'NAMED' ( n1 , .. , nn ) body" := (
-   (prod a1 (.. (prod an ()) ..))
-   (fun tuple =>
-        match tuple with
-        | (pair n1 .. (pair nn ()) .. ) => body
-        end
-   )) (only parsing, n1 closed binder, nn closed binder, at level 0).
- *)
+Notation "({ x , .. , y })" := (pair x .. (pair y tt) ..).
+
+Notation "( 'tuplef' n1 .. nn  => body )" :=
+  (fun tuple =>
+    match tuple with (pair tuple u) =>
+    (fun (_ : unit) =>
+      match tuple with (pair tuple tail) =>
+        (fun nn =>
+          ..
+            match tuple with (pair tuple tail) =>
+              (fun n1 => body) tail
+            end
+          ..
+        ) tail
+      end) u
+    end)
+  (at level 200, n1 closed binder, nn closed binder).
+
+Check (( tuplef a b c d tt => a + b + c + d)) : _ -> nat.
 
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
-  (prod g1 (.. (prod gn ()) ..))
+  prod (prod g1 .. (prod gn ()) ..)
   pieces
   a
   ) (only parsing).
@@ -511,7 +520,7 @@ Proof.
   unfold rev_list_internal_spec, refines.
   (* Either the original or modified version have the same behavior *)
   (*start_function1_mod.*)
-  start_function1.
+  start_function1_mod.
   setoid_rewrite compute_close_precondition_eq.
   2:reflexivity.
   2:reflexivity.
