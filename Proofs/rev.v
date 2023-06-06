@@ -255,17 +255,19 @@ Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'R
  *)
 
 
-Definition refines argTs retT with_type propL paramsL globalsL sepL (rhs : with_type -> sum iexp ref_id) (A : val -> ival -> mpred) :=
+Definition refines argTs retT with_type (pieces : with_type -> (_ * _ * _ * _ * _)) (A : val -> ival -> mpred) :=
   NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
     (fun '(wth_vals, ctx) =>
-      (PROPx (propL wth_vals) (PARAMSx (paramsL wth_vals) (GLOBALSx (globalsL wth_vals) (SEPx
+      let '(propL, paramsL, globalsL, sepL, rhs) := pieces wth_vals
+      in
+      (PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx
       (cons 
-        (match rhs wth_vals with
+        (match rhs with
          | inl e' => refines_right ctx e'
          | inr k => !! (ctx = k) && emp
          end
         )%logic 
-        (sepL wth_vals) )
+        (sepL) )
       ))))
     ) 
     (fun '(_, ctx) =>
@@ -276,15 +278,10 @@ Definition refines argTs retT with_type propL paramsL globalsL sepL (rhs : with_
     )
   .
 
-
-Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] 'PROP' ( prop ) 'PARAMS' ( params ) 'GLOBALS' ( globals ) 'SEP' ( sep ) 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
+Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
   (prod g1 (.. (prod gn ()) ..))
-  prop
-  params
-  globals
-  sep
-  rhs
+  pieces
   a
   ) (only parsing).
 
