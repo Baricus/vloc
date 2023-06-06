@@ -294,7 +294,7 @@ Definition rev_list_internal_spec :=
    (* Prop Params Globals Sep Rhs *)
           [],
           [Vprev; Vcur],
-          [],
+          [gv],
           [EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur],
           inl (of_val rev_internal Iprev Icur)))
   POST [tptr node_t]
