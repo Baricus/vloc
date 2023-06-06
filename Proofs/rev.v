@@ -278,14 +278,16 @@ Definition refines argTs retT with_type (pieces : with_type -> (_ * _ * _ * _ * 
     )
   .
 
-(* Test notation *)
-Notation "'ARGS' ( a1 * .. * an ) 'NAMED' ( n1 , nn ) body" := (
+(* Test notation as an example of the matching problem *)
+(*
+Notation "'ARGS' ( a1 * .. * an ) 'NAMED' ( n1 , .. , nn ) body" := (
    (prod a1 (.. (prod an ()) ..))
    (fun tuple =>
         match tuple with
-        | (pair n1 nn) => body
+        | (pair n1 .. (pair nn ()) .. ) => body
         end
    )) (only parsing, n1 closed binder, nn closed binder, at level 0).
+ *)
 
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
@@ -507,8 +509,11 @@ Ltac start_function2 :=
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
   unfold rev_list_internal_spec, refines.
+  (* Either the original or modified version have the same behavior *)
+  (*start_function1_mod.*)
   start_function1.
   setoid_rewrite compute_close_precondition_eq.
+  2:reflexivity.
   2:reflexivity.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
