@@ -276,20 +276,37 @@ Definition refines argTs retT with_type propL paramsL globalsL sepL (rhs : with_
   .
 
 
-Notation "'GIVEN' ( g1 * .. * gn ) 'NAMED' ( n1 , .. , nn ) 'PRE' [ t ; .. ; t' ] 'PROP ( props ) 'PARAMS' ( params ) 'GLOBALS' ( globals ) SEP ( seps ) 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
+Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] 'PROP' ( prop ) 'PARAMS' ( params ) 'GLOBALS' ( globals ) 'SEP' ( sep ) 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
   (prod g1 (.. (prod gn ()) ..))
-  (fun x =>
-    match x with
-    | (pair n1 .. (pair nn ()) .. ) => props
-    end
-  )
-
+  prop
+  params
+  globals
+  sep
   rhs
   a
   ) (only parsing).
 
 (* The main program we want to verify *)
+Definition rev_list_internal_spec :=
+  DECLARE _rev_list_internal
+  GIVEN (globals * val * val * heap_lang.val * heap_lang.val * list Z * list Z)
+  PRE [tptr node_t ; tptr node_t]
+  PROP((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
+          []) )
+  PARAMS((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
+          [Vprev; Vcur]))
+  GLOBALS((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
+          []))
+  SEP((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
+       [EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur]))
+  POST [tptr node_t]
+  RHS((fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => 
+         inl (of_val rev_internal Iprev Icur)))
+  A(fun v i => EX σ, EquivList σ v i)
+  .
+
+(*
 Definition rev_list_internal_spec :=
   DECLARE _rev_list_internal
   GIVEN (globals * val * val * heap_lang.val * heap_lang.val * list Z * list Z)
@@ -303,8 +320,8 @@ Definition rev_list_internal_spec :=
   POST [tptr node_t]
   RHS(fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => inl (of_val rev_internal Iprev Icur))
   A(fun v i => EX σ, EquivList σ v i)
-  .
-  
+*) 
+
 Definition rev_list_internal_spec_old :=
   DECLARE _rev_list_internal
     WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival, Lcur: list Z, Lprev: list Z
@@ -479,8 +496,8 @@ Ltac start_refinement spec :=
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
-  start_refinement rev_list_internal_spec.
-  (*start_function.*)
+  unfold rev_list_internal_spec, refines.
+  start_function.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
