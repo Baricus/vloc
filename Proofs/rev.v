@@ -300,7 +300,7 @@ Check (( tuplef a b c d tt => a + b + c + d)) : _ -> nat.
 
 Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
-  prod (prod g1 .. (prod gn ()) ..)
+  (prod g1 .. (prod gn ()) ..)
   pieces
   a
   ) (only parsing).
