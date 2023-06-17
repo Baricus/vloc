@@ -400,126 +400,22 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     empty_node_spec
   ]).
 
-Ltac start_function1_mod :=
-  leaf_function;
-   lazymatch goal with
-   | |- semax_body ?V ?G ?F ?spec =>
-         check_normalized F; function_body_unsupported_features F;
-          (let s := fresh "spec" in
-           pose (s := spec); hnf in s; cbn zeta in s;
-            repeat
-             lazymatch goal with
-             | s:=(_, NDmk_funspec _ _ _ _ _):_ |- _ => fail
-             | s:=(_, mk_funspec _ _ _ _ _ _ _):_ |- _ => fail
-             | s:=(_, ?a _ _ _ _):_ |- _ => unfold a in s
-             | s:=(_, ?a _ _ _):_ |- _ => unfold a in s
-             | s:=(_, ?a _ _):_ |- _ => unfold a in s
-             | s:=(_, ?a _):_ |- _ => unfold a in s
-             | s:=(_, ?a):_ |- _ => unfold a in s
-             end;
-            lazymatch goal with
-            | s:=(_, WITH _ : globals PRE [ ] main_pre _ _ _ POST [tint] _):_
-              |- _ => idtac
-            | s:=?spec':_ |- _ => check_canonical_funspec spec'
-            end; change (semax_body V G F s); subst s; 
-            unfold NDmk_funspec')
-   end;
-   (let DependedTypeList := fresh "DependedTypeList" in
-    unfold NDmk_funspec;
-     match goal with
-     | |- semax_body _ _ _ (_, mk_funspec _ _ _ ?Pre _ _ _) =>
-           split3; [ check_parameter_types' | check_return_type |  ];
-            match Pre with
-            | λ _, convertPre _ _ (λ i, _) =>
-                intros Espec DependedTypeList i
-            | λ _ x, match _ with
-                     | (a, b) => _
-                     end => intros Espec DependedTypeList [a b]
-            | λ _ i, _ => intros Espec DependedTypeList i
-            end; simpl fn_body; simpl fn_params; simpl fn_return
-     end;
-     try
-      match goal with
-      | |- semax _ (λ rho, (?A rho * ?B rho)%logic) _ _ =>
-            change (λ rho, (?A rho * ?B rho)%logic) with (A * B)%logic
-      end; simpl _functor in *; simpl dependent_type_functor_rec; clear
-     DependedTypeList; rewrite_old_main_pre;
-     repeat
-      match goal with
-      | |- semax _ (match ?p with
-                    | (a, b) => _
-                    end * _)%logic _ _ => destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _ match ?p with
-                                | (a, b) => _
-                                end * _)%logic _ _ => 
-        destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _ (match ?p with
-                                | (a, b) => _
-                                end * _) * _)%logic _ _ => 
-        destruct p as [a b]
-      | |- semax _ (match ?p with
-                    | (a, b) => _
-                    end eq_refl * _)%logic _ _ => 
-        destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _ (match ?p with
-                                 | (a, b) => _
-                                 end eq_refl) * _)%logic _ _ =>
-            destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _
-             (λ ae,
-                !! (length ae.2 = ?A) &&
-                ?B (make_args ?C ae.2 (mkEnviron ae.1 _ _))) * _)%logic _ _
-        =>
-            match B with
-            | match ?p with
-              | (a, b) => _
-              end => destruct p as [a b]
-            end
-      end; try start_func_convert_precondition).
+(*Lemma PROP_PARAMS_GLOBALS_SEP_cons F P1 P2 P3 P4: *)
+  (*PROPx P1 (PARAMSx P2 (GLOBALSx P3 (SEPx (F :: P4)))) = (liftx (H:=LiftAEnviron _) F * PROPx P1 (PARAMSx P2 (GLOBALSx P3 (SEPx P4))))%logic.*)
+(*Proof.*)
+  (*change (SEPx (F :: P4)) with (liftx (H:=LiftAEnviron _) F * SEPx P4)%logic.*)
+  (*unfold PROPx, GLOBALSx, LOCALx.*)
+  (*unfold_lift; extensionality rho.*)
+  (*unfold local, lift1.*)
+  (*simpl.*)
+  (*apply pred_ext;*)
+    (*normalize;*)
+    (*iIntros "[Ra [Rb [Rc Rd]]]";*)
+    (*iFrame.*)
+(*Qed.*)
 
-Lemma PROP_PARAMS_GLOBALS_SEP_cons F P1 P2 P3 P4: 
-  PROPx P1 (PARAMSx P2 (GLOBALSx P3 (SEPx (F :: P4)))) = (liftx (H:=LiftAEnviron _) F * PROPx P1 (PARAMSx P2 (GLOBALSx P3 (SEPx P4))))%logic.
-Proof.
-  change (SEPx (F :: P4)) with (liftx (H:=LiftAEnviron _) F * SEPx P4)%logic.
-  unfold PROPx, GLOBALSx, LOCALx.
-  unfold_lift; extensionality rho.
-  unfold local, lift1.
-  simpl.
-  apply pred_ext;
-    normalize;
-    iIntros "[Ra [Rb [Rc Rd]]]";
-    iFrame.
-Qed.
-
-Ltac start_refinement spec :=
-  unfold spec;
-  unfold refines;
-  start_function1_mod; 
-  repeat match goal with
-  | [H : (?w * ref_id) |- ?b] => destruct H as [a ctx]
-  end;
-  rewrite (sepcon_comm (PROP () PARAMS (_ ; _) SEP (_ ; _)));
-  rewrite <- (PROP_PARAMS_GLOBALS_SEP_cons);
-  start_function2;
-  start_function3;
-  simpl.
-
-Ltac start_function2 :=
-  first
-  [ setoid_rewrite compute_close_precondition_eq; [  | reflexivity | reflexivity ]
-  | rewrite close_precondition_main ].
-      
-Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
-Proof.
-  unfold rev_list_internal_spec, refines.
+Ltac start_refines_unwrap spec :=
+  unfold spec, refines;
   leaf_function;
    lazymatch goal with
    | |- semax_body ?V ?G ?F ?spec =>
@@ -563,6 +459,8 @@ Proof.
             change (λ rho, (?A rho * ?B rho)%logic) with (A * B)%logic
       end; simpl _functor in *; simpl dependent_type_functor_rec; clear
      DependedTypeList; rewrite_old_main_pre).
+
+Ltac start_refines_unfold wth_vals :=
     repeat
       match goal with
       | |- context[let 'pair a b := wth_vals in _] => destruct wth_vals as [wth_vals b]
@@ -571,7 +469,8 @@ Proof.
       | |- context[let 'pair a b := wth_vals in _] => idtac "hi"
       | |- ?anything => rename wth_vals into Vprev
       end.
-    clear u.
+
+Ltac start_refines_reduce :=
      repeat
       match goal with
       | |- semax _ (match ?p with
@@ -612,8 +511,17 @@ Proof.
               end => destruct p as [a b]
             end
       end; try start_func_convert_precondition.
-  start_function2.
-  start_function3.
+
+Ltac start_refines spec wth_vals :=
+    start_refines_unwrap spec;
+    start_refines_unfold wth_vals;
+    start_refines_reduce;
+    start_function2;
+    start_function3.
+      
+Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
+Proof.
+  start_refines rev_list_internal_spec wth_vals.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
