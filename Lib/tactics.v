@@ -1,5 +1,113 @@
 From Vloc Require Import core pure heap util heaplang_notation.
 
+(* Tactics for starting refinement proofs *)
+#[export] Ltac start_refines_unwrap :=
+  match goal with
+  | |- semax_body _ _ _ ?spec => unfold spec
+  end;
+  unfold refines;
+  leaf_function;
+   lazymatch goal with
+   | |- semax_body ?V ?G ?F ?spec =>
+         check_normalized F; function_body_unsupported_features F;
+          (let s := fresh "spec" in
+           pose (s := spec); hnf in s; cbn zeta in s;
+            repeat
+             lazymatch goal with
+             | s:=(_, NDmk_funspec _ _ _ _ _):_ |- _ => fail
+             | s:=(_, mk_funspec _ _ _ _ _ _ _):_ |- _ => fail
+             | s:=(_, ?a _ _ _ _):_ |- _ => unfold a in s
+             | s:=(_, ?a _ _ _):_ |- _ => unfold a in s
+             | s:=(_, ?a _ _):_ |- _ => unfold a in s
+             | s:=(_, ?a _):_ |- _ => unfold a in s
+             | s:=(_, ?a):_ |- _ => unfold a in s
+             end;
+            lazymatch goal with
+            | s:=(_, WITH _ : globals PRE [ ] main_pre _ _ _ POST [tint] _):_
+              |- _ => idtac
+            | s:=?spec':_ |- _ => check_canonical_funspec spec'
+            end; change (semax_body V G F s); subst s; 
+            unfold NDmk_funspec')
+   end;
+   (let DependedTypeList := fresh "DependedTypeList" in
+    unfold NDmk_funspec;
+     match goal with
+     | |- semax_body _ _ _ (_, mk_funspec _ _ _ ?Pre _ _ _) =>
+           split3; [ check_parameter_types' | check_return_type |  ];
+            match Pre with
+            | λ _, convertPre _ _ (λ i, _) =>
+                intros Espec DependedTypeList i
+            | λ _ x, match _ with
+                     | (a, b) => _
+                     end => intros Espec DependedTypeList [a b]
+            | λ _ i, _ => intros Espec DependedTypeList i
+            end; simpl fn_body; simpl fn_params; simpl fn_return
+     end;
+     try
+      match goal with
+      | |- semax _ (λ rho, (?A rho * ?B rho)%logic) _ _ =>
+            change (λ rho, (?A rho * ?B rho)%logic) with (A * B)%logic
+      end; simpl _functor in *; simpl dependent_type_functor_rec; clear
+     DependedTypeList; rewrite_old_main_pre).
+
+#[export] Ltac start_refines_unfold wth_vals :=
+    try
+      match goal with
+      | |- context[let 'pair a b := wth_vals in _] => destruct wth_vals as [a b]; start_refines_unfold a
+      end.
+
+#[export] Ltac start_refines_reduce :=
+     repeat
+      match goal with
+      | |- semax _ (match ?p with
+                    | (a, b) => _
+                    end * _)%logic _ _ => destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _ match ?p with
+                                | (a, b) => _
+                                end * _)%logic _ _ => 
+        destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _ (match ?p with
+                                | (a, b) => _
+                                end * _) * _)%logic _ _ => 
+        destruct p as [a b]
+      | |- semax _ (match ?p with
+                    | (a, b) => _
+                    end eq_refl * _)%logic _ _ => 
+        destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _ (match ?p with
+                                 | (a, b) => _
+                                 end eq_refl) * _)%logic _ _ =>
+            destruct p as [a b]
+      | |-
+        semax _
+          (close_precondition _
+             (λ ae,
+                !! (length ae.2 = ?A) &&
+                ?B (make_args ?C ae.2 (mkEnviron ae.1 _ _))) * _)%logic _ _
+        =>
+            match B with
+            | match ?p with
+              | (a, b) => _
+              end => destruct p as [a b]
+            end
+      end; try start_func_convert_precondition.
+
+#[export] Ltac start_refines wth_vals :=
+    start_refines_unwrap;
+    start_refines_unfold wth_vals;
+    start_refines_reduce;
+    start_function2;
+    start_function3.
+      
+
+
+(* Tactics for stepping functions *)
 #[local] Ltac try_pures e' := first [
      apply pure_injrc 
    | apply pure_injlc 

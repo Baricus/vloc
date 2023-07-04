@@ -187,6 +187,55 @@ Proof.
   auto.
 Qed.
 
+(* A VST triple for a refinement *)
+Definition refines argTs retT with_type (pieces : with_type -> (_ * _ * _ * _ * _)) (A : val -> ival -> mpred) :=
+  NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
+    (fun '(wth_vals, ctx) =>
+      let '(propL, paramsL, globalsL, sepL, rhs) := pieces wth_vals
+      in
+      (PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx
+      (cons 
+        (match rhs with
+         | inl e' => refines_right ctx e'
+         | inr k => !! (ctx = k) && emp
+         end
+        )%logic 
+        (sepL) )
+      ))))
+    ) 
+    (fun '(_, ctx) =>
+      EX Vres, EX Ires, 
+      PROP()
+      RETURN(Vres)
+      SEP(((A Vres Ires) * (refines_right ctx (of_val Ires))))
+    )
+  .
+
+(* NOTE: some possible better notations for later *)
+Notation "({ x , .. , y })" := (pair x .. (pair y tt) ..).
+
+Notation "( 'tuplef' n1 .. nn  => body )" :=
+  (fun tuple =>
+    (*match tuple with (pair tuple u) =>*)
+    (*(fun (_ : unit) =>*)
+      match tuple with (pair tuple tail) =>
+        (fun nn =>
+          ..
+            match tuple with (pair tuple tail) =>
+              (fun n1 => body) tail
+            end
+          ..
+        ) tail
+      (*end) u*)
+    end)
+  (at level 200, n1 closed binder, nn closed binder).
+
+(*
+Check (( tuplef a b c d => a + b + c + d)) : _ -> nat.
+
+Compute ((tuplef a b c d => a + b + c + d) ((), 1, 2, 3, 4)).
+ *)
+
 End refinement.
 
 (* hints have to go here since they don't export otherwise *)
@@ -199,4 +248,11 @@ End refinement.
 
 (* TODO: figure out if this is actually exported? My bet is ... no *)
 #[export] Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
+
+#[export] Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
+  refines (cons t .. (cons t' nil) ..) rtyp
+  (prod g1 .. (prod gn ()) ..)
+  pieces
+  a
+  ) (only parsing).
 

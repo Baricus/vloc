@@ -20,25 +20,6 @@ Context `{refines_ctx}.
 
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
 
-Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
-    NDmk_funspec (argTs, retT) cc_default with_type 
-    (fun a b => P a b * 
-      (∀ j : ref_id,
-      match rhs with
-      | inl e' => refines_right j e'
-      | inr k => !! (j = k) && emp
-      end
-    ))%logic
-    (fun wc environ => (EX Vres, EX Ires, (sepcon (A Vres Ires) (EX ctx, refines_right ctx (Ires))))).
-
-Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
-  refines (cons t .. (cons t' nil) ..) rtyp
-  (prod g1 (.. (prod gn ()) ..))
-    spec
-  rhs
-  a
-  ).
-
 (*
 Definition refines_semax varspecs funspecs func ident argTs retT with_type (P : with_type -> argsEnviron -> mpred) (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
   semax_body (C:=cs) varspecs funspecs func
@@ -53,16 +34,18 @@ Require Import Proofs.rev.
 
 (*Unset Printing Notations.*)
 Definition test_spec := 
-  GIVEN (globals * ref_id * val * val * ival * ival * list Z * list Z)
+  DECLARE _rev_list_internal
+  GIVEN (val * val * heap_lang.val * heap_lang.val * list Z * list Z)
   PRE [tptr node_t ; tptr node_t]
-  (fun '(gv, ctx, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
-      PROP()
-      PARAMS(Vprev; Vcur)
-      GLOBALS()
-      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur)
-    )
+  (fun '(Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => (
+   (* Prop Params Globals Sep Rhs *)
+          [],
+          [Vprev; Vcur],
+          [],
+          [EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur],
+          inl (of_val rev_internal Iprev Icur)))
+
   POST [tptr node_t]
-  RHS(inl (of_val rev_internal))
   A(fun v i => EX σ, EquivList σ v i)
   .
 
@@ -94,26 +77,35 @@ Definition test_spec :=
      (*(fun x => P) (fun x => Q)) : funspec_scope (default interpretation)*)
 
 (* Currently:
-    - No restrictions on P, Q, P', Q'
-      - it should have something!
-      - Do we just have a 2nd triple for the VSTLoc version?
-      - A needs to show up in the final triple (or just in the refinement triple?)
+    - P' Q' need to be replaced with propL, etc as in final clause
+    - Can I have syn_relate be tied to a function on the argsEnviron as the PROP()LOCAL()SEP()?
 *)
 Lemma syn_relate_sound 
   varspecs funspecs func ident argTs retT with_type
-  (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpred):
-  (* VSTLoC Triple *)
-  
+  (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpred) pieces A:
   (* relationship between structures *)
-  syn_relate P P' →
+  (* First one requires us to translate the precondition *)
+  forall wth_vals aE,
+  let '(propL, paramsL, globalsL, sepL, _) := pieces wth_vals
+  in
+  syn_relate P ((PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx sepL)))) aE) →
+  (* Second one just ensures that the two are translated *)
   syn_relate Q Q' →
   (* HeapLang triple *)
   {{{ P }}} e {{{ RET v; Q }}} →
+  (* Refinement triple *)
+  semax_body varspecs funspecs func (ident, refines argTs retT with_type pieces A) →
+
   (* -> VST triple *)
   (*semax compspecs Espec Δ *)
   semax_body varspecs funspecs func (
     ident,
     (* x => WITH clauses, y => environment (args/return) *)
-    NDmk_funspec (argTs, retT) cc_default with_type (fun x y => P') (fun x y => Q') 
+    NDmk_funspec (argTs, retT) cc_default with_type (fun wth_vals =>
+    let '(propL, paramsL, globalsL, sepL, _) := pieces wth_vals
+    in
+      PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx sepL))))
+ (fun x y => Q') 
   )
   .
+  intros.

@@ -222,91 +222,6 @@ Proof.
 Qed.
 #[export] Hint Resolve EquivList_local_facts : saturate_local.
 
-
-(* replace P with 2 args ->
-    one is black box precondition (prop + local)
-    one is list of mpreds (add on before SEPx)
-*)
-(*
-Definition refines argTs retT with_type (P : with_type -> argsEnviron -> mpred)  (rhs : with_type -> sum iexp ref_id) (A : val -> ival -> mpred) :=
-    NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
-    (fun '(w_typ, ctx) => P w_typ * 
-      liftx (H:=LiftAEnviron _) (
-      match rhs w_typ with
-      | inl e' => refines_right ctx e'
-      | inr k => !! (ctx = k) && emp
-      end
-    ))%logic
-    (
-    fun '(_, ctx) =>
-    PROP()
-    LOCAL()
-    SEP(EX Vres, EX Ires, (sepcon (A Vres Ires) (refines_right ctx (of_val Ires))))
-    )
-    .
-
-Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] spec 'POST' [ rtyp ] 'RHS' ( rhs ) 'A' ( a )" :=  (
-  refines (cons t .. (cons t' nil) ..) rtyp
-  (prod g1 (.. (prod gn ()) ..))
-    spec
-  rhs
-  a
-  ) (only parsing).
- *)
-
-
-Definition refines argTs retT with_type (pieces : with_type -> (_ * _ * _ * _ * _)) (A : val -> ival -> mpred) :=
-  NDmk_funspec (argTs, retT) cc_default (with_type * ref_id)
-    (fun '(wth_vals, ctx) =>
-      let '(propL, paramsL, globalsL, sepL, rhs) := pieces wth_vals
-      in
-      (PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx
-      (cons 
-        (match rhs with
-         | inl e' => refines_right ctx e'
-         | inr k => !! (ctx = k) && emp
-         end
-        )%logic 
-        (sepL) )
-      ))))
-    ) 
-    (fun '(_, ctx) =>
-      EX Vres, EX Ires, 
-      PROP()
-      RETURN(Vres)
-      SEP(((A Vres Ires) * (refines_right ctx (of_val Ires))))
-    )
-  .
-
-Notation "({ x , .. , y })" := (pair x .. (pair y tt) ..).
-
-Notation "( 'tuplef' n1 .. nn  => body )" :=
-  (fun tuple =>
-    (*match tuple with (pair tuple u) =>*)
-    (*(fun (_ : unit) =>*)
-      match tuple with (pair tuple tail) =>
-        (fun nn =>
-          ..
-            match tuple with (pair tuple tail) =>
-              (fun n1 => body) tail
-            end
-          ..
-        ) tail
-      (*end) u*)
-    end)
-  (at level 200, n1 closed binder, nn closed binder).
-
-Check (( tuplef a b c d => a + b + c + d)) : _ -> nat.
-
-Compute ((tuplef a b c d => a + b + c + d) ((), 1, 2, 3, 4)).
-
-Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
-  refines (cons t .. (cons t' nil) ..) rtyp
-  (prod g1 .. (prod gn ()) ..)
-  pieces
-  a
-  ) (only parsing).
-
 (* The main program we want to verify *)
 Definition rev_list_internal_spec :=
   DECLARE _rev_list_internal
@@ -319,27 +234,12 @@ Definition rev_list_internal_spec :=
           [],
           [EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur],
           inl (of_val rev_internal Iprev Icur)))
-  POST [tptr node_t]
 
+  POST [tptr node_t]
   A(fun v i => EX σ, EquivList σ v i)
   .
 
 (*
-Definition rev_list_internal_spec :=
-  DECLARE _rev_list_internal
-  GIVEN (globals * val * val * heap_lang.val * heap_lang.val * list Z * list Z)
-  PRE [tptr node_t ; tptr node_t]
-  (fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) =>
-      PROP()
-      PARAMS(Vprev; Vcur)
-      GLOBALS()
-      SEP(EquivList Lprev Vprev Iprev ; EquivList Lcur Vcur Icur)
-    )
-  POST [tptr node_t]
-  RHS(fun '(gv, Vprev, Vcur, Iprev, Icur, Lcur, Lprev, _) => inl (of_val rev_internal Iprev Icur))
-  A(fun v i => EX σ, EquivList σ v i)
-*) 
-
 Definition rev_list_internal_spec_old :=
   DECLARE _rev_list_internal
     WITH gv: globals, ctx: ref_id, Vprev: val, Vcur: val, Iprev: ival, Icur: ival, Lcur: list Z, Lprev: list Z
@@ -354,7 +254,7 @@ Definition rev_list_internal_spec_old :=
       PROP()
       RETURN(Vres)
       SEP(EquivList σ' Vres Ires ; (refines_right ctx (ectxi_language.of_val Ires))).
-
+ *)
 
 (* the wrapper to just reverse a list *)
 Definition rev_list_spec :=
@@ -414,114 +314,14 @@ Definition Gprog : funspecs := ltac:(with_library prog [
     (*iFrame.*)
 (*Qed.*)
 
-Ltac start_refines_unwrap spec :=
-  unfold spec, refines;
-  leaf_function;
-   lazymatch goal with
-   | |- semax_body ?V ?G ?F ?spec =>
-         check_normalized F; function_body_unsupported_features F;
-          (let s := fresh "spec" in
-           pose (s := spec); hnf in s; cbn zeta in s;
-            repeat
-             lazymatch goal with
-             | s:=(_, NDmk_funspec _ _ _ _ _):_ |- _ => fail
-             | s:=(_, mk_funspec _ _ _ _ _ _ _):_ |- _ => fail
-             | s:=(_, ?a _ _ _ _):_ |- _ => unfold a in s
-             | s:=(_, ?a _ _ _):_ |- _ => unfold a in s
-             | s:=(_, ?a _ _):_ |- _ => unfold a in s
-             | s:=(_, ?a _):_ |- _ => unfold a in s
-             | s:=(_, ?a):_ |- _ => unfold a in s
-             end;
-            lazymatch goal with
-            | s:=(_, WITH _ : globals PRE [ ] main_pre _ _ _ POST [tint] _):_
-              |- _ => idtac
-            | s:=?spec':_ |- _ => check_canonical_funspec spec'
-            end; change (semax_body V G F s); subst s; 
-            unfold NDmk_funspec')
-   end;
-   (let DependedTypeList := fresh "DependedTypeList" in
-    unfold NDmk_funspec;
-     match goal with
-     | |- semax_body _ _ _ (_, mk_funspec _ _ _ ?Pre _ _ _) =>
-           split3; [ check_parameter_types' | check_return_type |  ];
-            match Pre with
-            | λ _, convertPre _ _ (λ i, _) =>
-                intros Espec DependedTypeList i
-            | λ _ x, match _ with
-                     | (a, b) => _
-                     end => intros Espec DependedTypeList [a b]
-            | λ _ i, _ => intros Espec DependedTypeList i
-            end; simpl fn_body; simpl fn_params; simpl fn_return
-     end;
-     try
-      match goal with
-      | |- semax _ (λ rho, (?A rho * ?B rho)%logic) _ _ =>
-            change (λ rho, (?A rho * ?B rho)%logic) with (A * B)%logic
-      end; simpl _functor in *; simpl dependent_type_functor_rec; clear
-     DependedTypeList; rewrite_old_main_pre).
-
-Ltac start_refines_unfold wth_vals :=
-    repeat
-      match goal with
-      | |- context[let 'pair a b := wth_vals in _] => destruct wth_vals as [wth_vals b]
-      end;
-      match goal with
-      | |- context[let 'pair a b := wth_vals in _] => idtac "hi"
-      | |- ?anything => rename wth_vals into Vprev
-      end.
-
-Ltac start_refines_reduce :=
-     repeat
-      match goal with
-      | |- semax _ (match ?p with
-                    | (a, b) => _
-                    end * _)%logic _ _ => destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _ match ?p with
-                                | (a, b) => _
-                                end * _)%logic _ _ => 
-        destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _ (match ?p with
-                                | (a, b) => _
-                                end * _) * _)%logic _ _ => 
-        destruct p as [a b]
-      | |- semax _ (match ?p with
-                    | (a, b) => _
-                    end eq_refl * _)%logic _ _ => 
-        destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _ (match ?p with
-                                 | (a, b) => _
-                                 end eq_refl) * _)%logic _ _ =>
-            destruct p as [a b]
-      | |-
-        semax _
-          (close_precondition _
-             (λ ae,
-                !! (length ae.2 = ?A) &&
-                ?B (make_args ?C ae.2 (mkEnviron ae.1 _ _))) * _)%logic _ _
-        =>
-            match B with
-            | match ?p with
-              | (a, b) => _
-              end => destruct p as [a b]
-            end
-      end; try start_func_convert_precondition.
-
-Ltac start_refines spec wth_vals :=
-    start_refines_unwrap spec;
-    start_refines_unfold wth_vals;
-    start_refines_reduce;
-    start_function2;
-    start_function3.
-      
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
-  start_refines rev_list_internal_spec wth_vals.
+  (*start_refines_unwrap.*)
+  (*start_refines_unfold wth_vals.*)
+  (*match goal with*)
+  (*| wth_vals : prod _ _ |- ?a => start_refines_unfold wth_vals*)
+  (*end.*)
+  start_refines wth_vals.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
   (*Open Scope iris_expr_scope.*)
