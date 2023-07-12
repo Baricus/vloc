@@ -316,11 +316,6 @@ Definition Gprog : funspecs := ltac:(with_library prog [
 
 Lemma rev_internal_lemma : semax_body Vprog Gprog f_rev_list_internal rev_list_internal_spec.
 Proof.
-  (*start_refines_unwrap.*)
-  (*start_refines_unfold wth_vals.*)
-  (*match goal with*)
-  (*| wth_vals : prod _ _ |- ?a => start_refines_unfold wth_vals*)
-  (*end.*)
   start_refines wth_vals.
   unfold rev_internal.
   (* NOTE: To get rid of the %Ei tag *)
@@ -358,7 +353,7 @@ Proof.
       iFrame.
     }
     {
-      (* Null != Null *)
+      (* Null != Null in H *)
       contradiction.
     }
   }

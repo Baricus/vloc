@@ -18,7 +18,12 @@ Context {cs: compspecs}.
 
 Context `{refines_ctx}.
 
+Context `{NatDed Prop}.
+
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
+
+Inductive syn_relate' (I : iProp Σ) (M : mpred) : Prop :=
+  | synRel_Int: forall (x : heap_lang.val) z, I = ⌜ x = LitV (LitInt z) ⌝ -> M = !!(TT) -> syn_relate' I M.
 
 (*
 Definition refines_semax varspecs funspecs func ident argTs retT with_type (P : with_type -> argsEnviron -> mpred) (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
@@ -89,14 +94,14 @@ Lemma syn_relate_sound
   let '(propL, paramsL, globalsL, sepL, _) := pieces wth_vals
   in
   syn_relate P ((PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx sepL)))) aE) →
-  (* Second one just ensures that the two are translated *)
+  (* Second one just ensures that the heaplang Q is translated directly to a VST Q' *)
   syn_relate Q Q' →
   (* HeapLang triple *)
   {{{ P }}} e {{{ RET v; Q }}} →
   (* Refinement triple *)
   semax_body varspecs funspecs func (ident, refines argTs retT with_type pieces A) →
 
-  (* -> VST triple *)
+  (* VST triple *)
   (*semax compspecs Espec Δ *)
   semax_body varspecs funspecs func (
     ident,
