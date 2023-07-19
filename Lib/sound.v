@@ -87,7 +87,8 @@ Definition test_spec :=
 *)
 Lemma syn_relate_sound 
   varspecs funspecs func ident argTs retT with_type
-  (P : iProp Σ) e v (Q : iProp Σ) (P' : mpred) (Q' : mpred) pieces A:
+  (P : iProp Σ) e v (Q : ival -> iProp Σ) (P' : mpred) (Q' : with_type -> environ -> mpred) pieces 
+  (A : val -> ival -> mpred):
   (* relationship between structures *)
   (* First one requires us to translate the precondition *)
   forall wth_vals aE,
@@ -95,9 +96,14 @@ Lemma syn_relate_sound
   in
   syn_relate P ((PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx sepL)))) aE) →
   (* Second one just ensures that the heaplang Q is translated directly to a VST Q' *)
-  syn_relate Q Q' →
+  (* NOTE: what should emp be?  We don't want a precondition but can we assume no memory? *)
+  ( forall Vret Iret environ, 
+    (emp |-- A Vret Iret) 
+  → (eval_var ret_temp retT environ) = Vret
+  → syn_relate (Q Iret) (Q' wth_vals environ) 
+  ) →
   (* HeapLang triple *)
-  {{{ P }}} e {{{ RET v; Q }}} →
+  {{{ P }}} e {{{ RET v; Q v }}} →
   (* Refinement triple *)
   semax_body varspecs funspecs func (ident, refines argTs retT with_type pieces A) →
 
@@ -110,7 +116,9 @@ Lemma syn_relate_sound
     let '(propL, paramsL, globalsL, sepL, _) := pieces wth_vals
     in
       PROPx (propL) (PARAMSx (paramsL) (GLOBALSx (globalsL) (SEPx sepL))))
- (fun x y => Q') 
+ (Q') 
   )
   .
+Proof.
   intros.
+  destruct (pieces wth_vals).
