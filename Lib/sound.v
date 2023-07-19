@@ -120,9 +120,9 @@ Lemma syn_relate_sound
   )
   .
 Proof.
-  intros.
+  intros;
   destruct pieces;
   destruct p as [p MPreds];
   destruct p as [p Globals];
-  destruct p as [Props Vals].
+  destruct p as [Props Vals];
   intros HSynP HSynQ Hheapspec Hrefinesspec.
