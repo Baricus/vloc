@@ -249,6 +249,7 @@ End refinement.
 (* TODO: figure out if this is actually exported? My bet is ... no *)
 #[export] Notation "a |=> b" := (tpool_mapsto a b) (at level 20).
 
+
 #[export] Notation "'GIVEN' ( g1 * .. * gn ) 'PRE' [ t ; .. ; t' ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
   refines (cons t .. (cons t' nil) ..) rtyp
   (prod g1 .. (prod gn ()) ..)
@@ -256,3 +257,9 @@ End refinement.
   a
   ) (only parsing).
 
+#[export] Notation "'GIVEN' ( ) 'PRE' [ ] pieces 'POST' [ rtyp ] 'A' ( a )" :=  (
+  refines nil rtyp
+  (())
+  pieces
+  a
+  ) (only parsing).

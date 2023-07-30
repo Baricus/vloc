@@ -134,4 +134,5 @@ Proof.
   destruct p as [p Globals];
   destruct p as [Props Vals];
   intros HSynP HSynQ Hheapspec Hrefinesspec.
+Admitted.
 
