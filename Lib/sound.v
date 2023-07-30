@@ -23,7 +23,15 @@ Context `{NatDed Prop}.
 Axiom syn_relate : iProp Σ -> mpred -> Prop.
 
 Inductive syn_relate' (I : iProp Σ) (M : mpred) : Prop :=
-  | synRel_Int: forall (x : heap_lang.val) z, I = ⌜ x = LitV (LitInt z) ⌝ -> M = !!(TT) -> syn_relate' I M.
+  | synRel_Int: forall (vi : heap_lang.val) (vv : val) z, 
+    I = ⌜ vi = LitV (LitInt z) ⌝ -> M = !!(vv = (Vint (Int.repr z))) -> syn_relate' I M
+  | synRel_MemZ: forall loc z ptr size sign attr,
+      let IntT := (Tint size sign attr) in
+        I = (loc ↦ LitV (LitInt z)) -> M = (data_at Ews IntT (Vint (Int.repr z)) ptr  *  malloc_token Ews IntT ptr)%logic -> syn_relate' I M.
+  (* We don't need this if we assert they're the same integer *)
+  (*| synRel_IntLT: forall ai bi av bv, *)
+
+    
 
 (*
 Definition refines_semax varspecs funspecs func ident argTs retT with_type (P : with_type -> argsEnviron -> mpred) (rhs : sum iexp ref_id) (A : val -> ival -> mpred) :=
@@ -126,3 +134,4 @@ Proof.
   destruct p as [p Globals];
   destruct p as [Props Vals];
   intros HSynP HSynQ Hheapspec Hrefinesspec.
+
