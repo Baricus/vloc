@@ -8,6 +8,7 @@ Definition Vprog : varspecs.  mk_varspecs prog. Defined.
 
 #[local] Instance one_ctx : refines_ctx := { gName := 1; nspace := nroot .@ "test"}.
 
+
 (*Definition refines f2 A : funspec :=*)
   (*WITH gv: globals, ctx: ref_id*)
   (*PRE [ [> types of function parameters <] ]*)
@@ -73,6 +74,19 @@ Definition true_spec :=
     RETURN(v)
     SEP(!!(v = Vint (Int.repr 1))).
 
-Lemma two: semax_body Vprog Gprog f_returns_one fspec -> semax_body Vprog Gprog f_returns_one true_spec.
+Context `{!heapGS Σ}.
+
+(*Context {cs: compspecs}.*)
+
+(*Context `{refines_ctx}.*)
+
+Lemma two: semax_body Vprog Gprog f_returns_one fspec 
+    → {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
+    → semax_body Vprog Gprog f_returns_one true_spec.
 Proof.
+  intros H Hheap.
+  simpl.
+  do 2 (split; auto).
   intros.
+  unfold semax_body in H; simpl in H; repeat destruct H as [_ H].
+  specialize (H Espec [] ((), (RefId 0 []))); simpl in H.
