@@ -80,7 +80,56 @@ Context `{!heapGS Σ}.
 
 (*Context `{refines_ctx}.*)
 
-Lemma two: semax_body Vprog Gprog f_returns_one fspec 
+Lemma related: 
+        {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
+      → funspec_sub (snd true_spec) (snd fspec).
+Proof.
+  intros HheapSpec.
+  apply prove_funspec_sub.
+  split; auto.
+  intros Lts Params Gargs.
+  destruct Params as [_ ctx].
+  iIntros "[%HargTyps Precondition]".
+  iModIntro.
+  iExists (nil).
+  iExists (_). (* No idea how to fill this in *)
+  iExists (emp)%logic.
+  iVST.
+  entailer!.
+  {
+    iIntros (env Hve).
+    unfold ve_of in Hve; destruct env; subst; simpl.
+    Intros v.
+    iIntros "Hpre".
+    iExists v.
+    iExists (#(false)).
+    rewrite PROP_LOCAL_SEP_cons.
+    iDestruct "Hpre" as "[Hpure Hpls]".
+    rewrite lift0C_prop.
+    rewrite lift_prop_unfold.
+    iVST.
+    rewrite prop_sepcon.
+    iIntros "[% Hpre]".
+    rewrite H.
+    unfold A.
+
+
+
+
+  }
+
+
+Lemma sub_route: 
+      {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
+    → semax_body Vprog Gprog f_returns_one fspec 
+    → funspec_sub (snd fspec) (snd true_spec)
+    → semax_body Vprog Gprog f_returns_one true_spec.
+Proof.
+  intros Hheap Hrefines Hsub.
+  simpl in Hsub.
+
+
+iLemma two: semax_body Vprog Gprog f_returns_one fspec 
     → {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
     → semax_body Vprog Gprog f_returns_one true_spec.
 Proof.
