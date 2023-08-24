@@ -81,30 +81,38 @@ Context `{!heapGS Σ}.
 (*Context `{refines_ctx}.*)
 
 Lemma related: 
+      forall r : ref_id,
         {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
-      → funspec_sub (snd true_spec) (snd fspec).
+      → funspec_sub (snd fspec) (snd true_spec).
 Proof.
+  intros rid.
   intros HheapSpec.
   apply prove_funspec_sub.
   split; auto.
   intros Lts Params Gargs.
-  destruct Params as [_ ctx].
   iIntros "[%HargTyps Precondition]".
   iModIntro.
   iExists (nil).
-  iExists (_). (* No idea how to fill this in *)
-  iExists (emp)%logic.
+  iExists ((), rid). (* No idea how to fill this in *)
+  iExists (emp)%logic. (* also no idea here; what mpred would I want? *)
   iVST.
   entailer!.
   {
     iIntros (env Hve).
     unfold ve_of in Hve; destruct env; subst; simpl.
-    Intros v.
+    Intros vres.
+    Intros ires.
     iIntros "Hpre".
-    iExists v.
-    iExists (#(false)).
+    iExists vres.
     rewrite PROP_LOCAL_SEP_cons.
-    iDestruct "Hpre" as "[Hpure Hpls]".
+    iDestruct "Hpre" as "[[%HA Rrefines] Rret]".
+    destruct HA as [Hi Hv].
+
+    (* TODO: show that the heaplang program proves that ires = #false *)
+
+
+    destruct (eq_dec vres (Vint (Int.repr 1))).
+
     rewrite lift0C_prop.
     rewrite lift_prop_unfold.
     iVST.
@@ -112,9 +120,7 @@ Proof.
     iIntros "[% Hpre]".
     rewrite H.
     unfold A.
-
-
-
+        
 
   }
 
