@@ -87,6 +87,7 @@ Lemma related:
 Proof.
   intros rid.
   intros HheapSpec.
+  simpl snd.
   apply prove_funspec_sub.
   split; auto.
   intros Lts Params Gargs.
