@@ -62,7 +62,7 @@ Qed.
 (* now we use this to prove the spec we want *)
 Definition true_spec :=
   DECLARE _returns_one
-  WITH gv: globals
+  WITH u: ()
   PRE []
     PROP()
     PARAMS()
@@ -81,33 +81,41 @@ Context `{!heapGS Σ}.
 (*Context `{refines_ctx}.*)
 
 Lemma related: 
+  forall (rID : ref_id),
         {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
-      → funspec_sub (snd true_spec) (snd fspec).
+      → funspec_sub (snd fspec) (snd true_spec).
 Proof.
-  intros HheapSpec.
+  intros RID HheapSpec.
   simpl snd.
   apply prove_funspec_sub.
   split; auto.
   intros Lts Params Gargs.
   destruct Params as [_ Refid].
   iIntros "[%HargTyps Precondition]".
+  iAssert (|={⊤}=> refines_right RID (ret_false (#true))) as ">H".
+  {
+    admit.
+  }
   iModIntro.
   iExists (nil).
-  iExists (_). (* No idea how to fill this in *)
+  iExists (tt, RID). (* No idea how to fill this in *)
   iExists (emp)%logic. (* also no idea here; what mpred would I want? *)
   iSplit.
   (* we can reach the new precondition *)
   {
     iVST.
-    cancel.
-    unfold refines_right, spec_ctx.
-    admit.
+    unfold PROPx, PARAMSx, GLOBALSx, LOCALx, SEPx, argsassert2assert.
+    entailer!.
+    unfold fold_right_sepcon.
+    entailer!.
   }
   {
     iPureIntro.
     intros env.
     iIntros "[%Henv [_ R]]".
-    iDestruct "R" as (retV) "Rpost".
+    simpl.
+    iDestruct "R" as (retV retI) "Rpost".
+    iExists retV.
 
   }
 
