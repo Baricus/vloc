@@ -81,24 +81,40 @@ Context `{!heapGS Σ}.
 (*Context `{refines_ctx}.*)
 
 Lemma related: 
-      forall r : ref_id,
         {{{ True }}} (ret_false (#true)) {{{v, RET v; ⌜v = (#false)⌝ }}}
-      → funspec_sub (snd fspec) (snd true_spec).
+      → funspec_sub (snd true_spec) (snd fspec).
 Proof.
-  intros rid.
   intros HheapSpec.
   simpl snd.
   apply prove_funspec_sub.
   split; auto.
   intros Lts Params Gargs.
+  destruct Params as [_ Refid].
   iIntros "[%HargTyps Precondition]".
   iModIntro.
   iExists (nil).
-  iExists ((), rid). (* No idea how to fill this in *)
+  iExists (_). (* No idea how to fill this in *)
   iExists (emp)%logic. (* also no idea here; what mpred would I want? *)
+  iSplit.
+  (* we can reach the new precondition *)
+  {
+    iVST.
+    cancel.
+    unfold refines_right, spec_ctx.
+    admit.
+  }
+  {
+    iPureIntro.
+    intros env.
+    iIntros "[%Henv [_ R]]".
+    iDestruct "R" as (retV) "Rpost".
+
+  }
+
   iVST.
   entailer!.
   {
+    intros env.
     iIntros (env Hve).
     unfold ve_of in Hve; destruct env; subst; simpl.
     Intros vres.
