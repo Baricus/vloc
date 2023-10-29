@@ -78,7 +78,82 @@ Context `{!heapGS Σ}.
 
 (*Context {cs: compspecs}.*)
 
-(*Context `{refines_ctx}.*)
+Context {ctx: refines_ctx}.
+
+Lemma alloc_ghost (cfg : cfg heap_lang) e (σ : language.state heap_lang):
+  forall (rID : ref_id),
+  rtc erased_step cfg ([e], σ) →
+  emp |-- (|={⊤}=> refines_right rID e).
+Proof.
+  intros Rid Herased.
+  unfold refines_right.
+  iIntros "_".
+  rewrite <- emp_sepcon.
+  iApply (own_alloc (RA:=spec_ghost) (to_tpool [e], to_heap (heap σ))).
+
+  (* TODO: allocate the ghost state here so we can split it up as needed between branches *)
+  iAssert (|==> ghost_part_ref (P:=spec_ghost) Tsh (to_tpool [e], to_heap (heap σ)) (to_tpool [e], to_heap (heap σ)) gName) as "Hg". 
+  (* Trying to copy sepcon *)
+  iSplitR.
+  {
+    unfold spec_ctx.
+    iExists (cfg).
+    iApply (inv_alloc).
+    unfold spec_inv.
+    iExists ([e]).
+    iExists (σ).
+    iModIntro.
+    iSplit; auto.
+    unfold InvGhost.
+
+  }
+  rewrite <- (emp_sepcon spec_ctx) at 1.
+
+  iVST.
+  apply (own_alloc g).
+
+
+
+  rewrite <- (emp_sepcon spec_ctx) at 1.
+  Intros.
+  rewrite ?emp_sepcon.
+
+Ltac ghost_alloc G :=
+  match goal with
+  | |- semax _ (PROPx _ (LOCALx _ (SEPx (?R1 :: _)))) _ _ =>
+        rewrite <- (emp_sepcon R1)  at 1; Intros; viewshift_SEP 0%Z
+         (EX g, G g);
+         [ go_lowerx; eapply derives_trans, bupd_fupd; rewrite ?emp_sepcon;
+            apply own_alloc; auto; simpl; auto with init share ghost
+         |  ]
+  end
+Redefined by:
+fupd
+
+  ghost_alloc (ghost_var Tsh 0).
+
+  iSplitL.
+  {
+    unfold spec_ctx.
+    iExists cfg.
+    iMod (inv_alloc nspace ⊤ (spec_inv cfg) with "[]") as "H".
+    {
+      unfold spec_inv.
+      iExists [e].
+      iExists σ.
+      iNext.
+      iSplit; first iPureIntro; auto.
+      unfold InvGhost.
+      iMod ().
+
+    }
+    auto.
+  }
+  iMod (own_alloc (to_tpool [e])).
+    
+Admitted.
+  
+
 
 Lemma related: 
   forall (rID : ref_id),
@@ -94,6 +169,7 @@ Proof.
   iIntros "[%HargTyps Precondition]".
   iAssert (|={⊤}=> refines_right RID (ret_false (#true))) as ">H".
   {
+    unfold refines_right, spec_ctx, tpool_mapsto, UsrGhost; iSplitL.
     admit.
   }
   iModIntro.
